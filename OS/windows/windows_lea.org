@@ -1,0 +1,8 @@
+* Windows编程简史
+** DLL Hell
+DLL灾难, 就是微软的DLL升级时因为不同版本可能造成应用程序无法运行的灾难.
+首当其冲的是COM编程, 例如某些木马或是病毒更改了一些系统的DLL可以导致整个Windows不举,
+这就是DLL Hel.
+
+* NTFS文件格式
+[[file:content/NTFS_lea.org][NTFS文件格式]]

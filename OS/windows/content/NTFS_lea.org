@@ -1,0 +1,27 @@
+* NTFS格式文件
+** 简介
+Windows NT/2K/XP版本都支持NTFS.
+NTFS是一个有安全性质的文件系统, 可以通过Windows的资源管理器来设置对每个目录和文件的用户访问权限.
+
+** 术语
+在Windows NT/2K/XP下的对象,不一定是文件系统,还有其它的一些对象,如: 进程、命名管道、打印机、
+网络共享、或是注册表等, 都可以设置用户访问权限.
+
+Windows系统中用一个安全描述符(Security Descriptors)的结构来保存其权限的设置信息,简称为SD.
+其在Windows SDK中的结构名是"SECURITY_DESCRIPTOR", 这是包括了安全设置信息的结构体.
+一个安全描述符包含以下信息:
+一个安全标识符(Security identifiers), 其标识了该信息是哪个对象的,用于记录安全对象的ID.简称:SID.
+
+一个DACL(Discretionary Access Control List), 指出了允许和拒绝某用户或用户组的存取控制列表.
+当一个进程需要访问安全对象, 系统就会检查DACL来决定进程的访问权. 如果一个对象没有DACL,
+那么就是说这个对象是任何人都可以拥有完全的访问权限.
+
+一个SACL(System Access Control List), 指出了在该对象上的一组存取方式(如，读、写、运行等)的
+存取控制权限细节的列表.
+
+还有其自身的一些控制位.
+
+DACL和SACL构成了整个存取控制列表Access Control List, 即ACL.
+ACL中的每一项就叫做ACE(Access Control Entry)
+
+DACL表中的每个ACE的顺序是有意义的, 如果前面的Allow(或denied)ACE通过了, 系统就不会检查后面的ACE.

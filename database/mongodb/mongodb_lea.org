@@ -1,0 +1,102 @@
+* MongoDB
+** 简介
+MongoDB采用Bson格式存储, 比JSON数据类型更加丰富, 支持OjbectId、日期类型、正则表达式、JS代码、
+二进制数据等.
+
+MongoDB不支持事务、不支持多表连接查询、键值对是有序的, 相同的键值对不同的顺序属于不同的文档.
+_id的值可以是任意类型, 默认是ObjectId类型, 可以在分片环境中生成唯一的标识符.
+
+** mongodb中一些特殊的键
+它们被称为修改器、操作符, 如: 以$开头
+$set, $unset, $inc, $and, $push, ...
+
+** 术语
+collection -> table
+document -> row
+field -> column
+
+* mongod服务
+** 简介
+mongodb的数据是存储在磁盘上的, 在启动时需要指定数据库的存储位置, 默认存储在/data/db目录下.
+
+** 启动mongodb服务
+mongod --dbpath="/save/data/path"
+
+* mongo客户端连接服务器
+** 语法
+mongo [IP:PORT][/DATABASE_NAME]
+
+IP默认是127.0.0.1, PORT默认是27017, DATABASE默认是test
+
+实例操作:
+#+BEGIN_SRC 
+mongo --nodb
+
+conn = new Mongo("localhost:27017")
+db = conn.getDB("test")
+#+END_SRC
+
+* 基本命令
+** 命令帮助
+help: 列出所有可用命令
+db.help(): 列出db对象所支持的操作
+db.<table>.help(): 列举集合对象对应的操作
+db.<table>.update: 查看update方法的实现或者查看方法的定义
+
+print("hello, mongo"):  在mongo命令行中打印语句
+mongo <script_name>: 执行js脚本
+load("<script_name>"): 在mongo命令行中加载脚本来执行函数.
+
+一个示例js脚本内容:
+#+BEGIN_SRC javascript
+print(db.getMongo().getDBs());  // show dbs
+db.getSisterDB("foo");  // use foo
+db.users.insert({"username": "casper"}); // insert data
+print(db.getCollectionNames()); // show collections
+#+END_SRC
+
+** 配置EDITOR变量
++ 方法1
+  mongo启动后可以传递一个EDITOR变量, 赋值一个文本编辑器的位置, 然后就可以使用edit
+  命令打开编辑某个变量了.
+
+  使用方法:
+  export EDITOR="/editor/path"  && mongo
+
++ 方法2
+  可以将该变量配置在.mongorc.js中
+  EDITOR="/editor/path"
+
+** 数据库基本命令
+db: 查看当前数据库
+show dbs:  显示所有数据库, 如果数据库里没有任何集合, 是不展示出来的
+use <db_name>: 切换或新建数据库
+db.dropDatabase():  删除数据库
+show tables / collections: 显示所有表(集合)
+
+** mongo shell
+mongo shell是一种javascript shell, 可以定义变量、函数以及调用函数.
+
+** 集合(表)操作
+[[https://blog.csdn.net/vbirdbest/article/details/76037827][mongo基本操作参考资料]]
+
+*** 隐式创建集合
+当向集合插入文档时, 如果集合不存在, 系统会自动创建. 如:
+#+BEGIN_SRC text
+db.users.insert({"name": "casper", "age": 29})
+#+END_SRC
+
+*** 显示创建集合
+db.createCollection("集合名字", 可配置选项)
+
+固定集合只能通过调用方法显式创建, 可以指定集合存储数据的大小和最多允许存储的条数.
+当固定集合文档条数到达上限时, 再插入新的文档会将最老的文档删掉, 然后插入到该位置.
+如:
+#+BEGIN_SRC text
+db.createCollection("address", {
+  capped: true, size: 10000, max:1000
+})
+#+END_SRC
+
+*** 删除集合
+db.address.drop()
