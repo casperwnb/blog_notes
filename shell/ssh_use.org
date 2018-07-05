@@ -1,0 +1,160 @@
+* SSH简单使用
+ssh user@host -p <port>  # 使用用户名登录指定端口的ssh服务, 之后输入密码即可
+
+可以对该命令使用命令别名:
+alias login_xx='ssh user@host -p <port>'
+
+* SSH Key生成
+ssh-keygen -t rsa -C "xxx" -f sshkey_filename
+-C后面的参数可以是任意的内容, 如果是想配置类似github这样的网站, 建议使用邮箱
+
+* Linux SSH 配置
+1. ssh key 生成
+   ssh-keygen -t rsa -C "xxxx" -f sshkey_filename
+
+2. 在服务器上建立文件夹
+   mkdir ~/.ssh
+
+3. 拷贝公钥文件到服务器(服务器只需这一步配置即可)
+   scp ~/.ssh/xxx.pub user@host:/home/user/.ssh/xx.pub
+
+   登录到服务器上执行命令
+   cat xx.pub >> authorized_keys
+   
+   以上两步可以使用ssh-copyid来完成:
+   ssh-copyid -i xx name@ip
+
+* 本地SSH配置-多ssh key管理
+** 生成公私钥文件
+注意在生成公私钥文件时, 需要使用-f参数
+ssh-keygen -t rsa -C "xxx" -f <sshkey_filename>
+
+** config的读取过程
+ssh在建立连接之前, 会在系统中寻找它的配置文件, 一般有两个位置:
+/etc/ssh/ssh_config 这个是对所有用户适用的全局配置
+~/.ssh/config 这是用户的个人配置, 会覆盖全局配置中的设置, 如果不存在可以添加
+
+注意:一般给.ssh目录的权限是0700
+
+** 基本配置格式
+对于命令 ssh user@host -p <port>对应的配置格式如下:
+#+BEGIN_SRC config
+HOST <alias_name>
+  HostName <ip> or <domain>
+  Port <port>
+  User <username>
+#+END_SRC
+对于配置格式: param value 也可以为 param=value, 其中 param 大小写不敏感; value 大小写敏感.
+此时使用 ssh alias_name即可登录服务器.
+
+部分配置参数的说明:
+Host: SSH 连接名
+HostName: 可以是通配符, 可以是 IP, 也可以是域名等
+User: 登录linux的用户名
+IdentifyFile: version 1 协议下默认是 ~/.ssh/identify,
+              version 2 协议下, 默认是依次匹配: ~/.ssh/id_dsa, ~/.ssh/id_ecdsa,
+              ~/.ssh/id_rsa, 还有 version 2 兼容模式
+
+LocalForward: 端口的内部跳转
+Port: 端口设置, 默认 SSH 的端口是 22
+Protocal: 协议版本号1 或者 2
+
+** linux 免密登录
+在基本配置格式之后添加: IdentifyFile <ssh-keygen private file>
+即完整格式如下:
+#+BEGIN_SRC text
+HOST <alias_name>
+  HostName <ip> or <domain>
+  Port <port>
+  User <username>
+  IdentifyFile <ssh-keygen private file>
+#+END_SRC
+
+** 端口转发
+简单命令是:
+ssh -f -N -L 8999:127.0.0.1:3306 user@ip
+意思是: 将访问8999端口的请求转发到3306端口上.
+
+其配置如下:
+#+BEGIN_SRC text
+Host <alias_name>
+  HostName <ip> or <domain>
+  User <user>
+  LocalForward <open_port> <ip>:<inner_port>
+#+END_SRC
+将访问open_port的请求转发到<ip>:<inner_port>上
+
+复杂一些的命令:
+# 将发往本机的9200端口访问转发到192.168.1.19的9200端口上, 执行此命令的前提是先进行密钥传输
+# 执行完成后当访问本机的9200端口则会真实的访问192.168.1.19:9200端口
+ssh -p 22 -C -f -N -g -L 9200:192.168.1.19:9200 <uname>@192.168.1.19
+
+** ssh翻墙配置
+sock5的翻墙命令是:
+ssh -qTfnNC -D 12345 user@216.194.70.6 -p 22
+
+** 配置验证
+ssh -vT <alias_name>  # 可以查看ssh登录的详细信息
+
+* SSH PEM验证登录
+** 使用完全命令
+ssh -i xx.pem user@host -p <port>  # 使用验证文件登录ssh服务
+
+** 简化操作 - 添加配置文件
+1. 修改pem文件的权限: sudo chmod 600 xxx.pem
+2. 添加配置文件: ssh-add -k xxx.pem, 输入给定的pem文件的密码
+   注意: 每次mac重启后, 都需要执行该命令一次.  #TODO: 有其他的处理方法吗
+3. 添加ssh的配置文件
+   #+BEGIN_SRC text
+Host <alias_name>
+  HostName <ip> or domain
+  Port <port>
+  User <username>
+   #+END_SRC
+
+** 注意
+ssh-add -l  # 列出管理的私钥
+ssh-add命令不是用来永久记忆所使用的私钥的, 它的作用只是把指定的私钥添加到ssh-agent管理的
+一个Session中, ssh-agent只是一个用于临时存储私钥的临时性Session服务, 系统重启后,
+ssh-agent服务也就重置了.
+
+* Ubuntu启用远程root用户ssh登录
+1. 执行sudo passwd root 为root用户设置密码, 即启用root用户
+2. 修改ubunut的配置文件 /etc/ssh/sshd_config
+   将PermitRootLogin without-password注释
+   添加新内容: PermitRootLogin yes
+   然后重启ssh服务即可
+
+* ssh 连接centos慢
+修改服务器上的/etc/ssh/sshd_config
+
+UseDNS=no  # 关闭DNS方向解析
+GSSAPIAuthentication no  # 关闭GSS认证信息
+
+修改之后, 重启ssh服务即可
+
+* ssh连接服务器自动断开
+在ssh的客户端设置添加如下配置:
+vi /etc/ssh/ssh_config
+在相应的Host段下添加如下内容:
+ServerAliveInterval 30  # 表示每30s发送一次
+ServerAliveCountMax 2  # 客户端发出请求后服务端没有响应的次数达到2次,就自动断开
+
+* github配置ssh
+1. ssh-keygen -t rsa -C "email" -f filename
+2. 将生成的.pub文件的内容添加到github
+3. 在~/.ssh/config配置文件中添加内容
+   #+BEGIN_SRC text
+Host github.com
+  HostName www.github.com
+  User casperwnb
+  IdentityFile /Users/demon/.ssh/github.com   
+   #+END_SRC
+4. 验证是否添加成功
+   ssh -T git@github.com
+
+* 遇到的问题
+** 1. ssh远程连接, 输入密码验证成功后, 立即断开连接
+原因: 未知
+解决方法: 可以尝试修改sshd的配置文件: /etc/ssh/sshd_config, 将UsePAM设置为no
+
