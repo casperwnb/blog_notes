@@ -25,6 +25,9 @@ ssh-keygen -t rsa -C "xxx" -f sshkey_filename
    ssh-copyid -i xx name@ip
 
 * 本地SSH配置-多ssh key管理
+** 参考资料
+[[https://www.barretlee.com/blog/2016/03/09/config-in-ssh-after-troubling-git-connection/][多SSH Key管理技巧与Git多账户登录问题]]
+
 ** 生成公私钥文件
 注意在生成公私钥文件时, 需要使用-f参数
 ssh-keygen -t rsa -C "xxx" -f <sshkey_filename>
@@ -58,6 +61,21 @@ IdentifyFile: version 1 协议下默认是 ~/.ssh/identify,
 LocalForward: 端口的内部跳转
 Port: 端口设置, 默认 SSH 的端口是 22
 Protocal: 协议版本号1 或者 2
+
+** config全局配置
+添加配置内容如下:
+#+BEGIN_SRC text
+### default for all ##
+Host *
+  ForwardAgent no
+  ForwardX11 no
+  ForwardX11Trusted yes
+  User <user>
+  Port 22
+  Protocol 2
+  ServerAliveInterval 60
+  ServerAliveCountMax 30
+#+END_SRC
 
 ** linux 免密登录
 在基本配置格式之后添加: IdentifyFile <ssh-keygen private file>
