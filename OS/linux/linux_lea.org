@@ -1,0 +1,20 @@
+* Linux通用
+** 进程
+Ctrl+D  # 暂停当前进程
+jobs -l  # 列出所有进程
+fg %[number]  # 把一个程序调用到前台来运行
+
+** 修改文件的特殊属性
+chattr: 可以修改文件的多种特殊属性
+a 增加该属性后, 只能追加不能删除, 非root用户不能设定该属性
+c 自动压缩该文件, 读取时会自动解压
+i 增加后该文件不能被删除、重命名、设定链接、写入新增数据
+
+lsattr: 用于读取文件或目录的特殊权限
+
+* Centos
+[[file:centos/centos_lea.org][CentOS系统相关]]
+
+* DIM-SUM操作系统
+** 准备工作
+[[https://mp.weixin.qq.com/s/5Tj7UVdHLJw-opQEGjY64A][web参考链接]]

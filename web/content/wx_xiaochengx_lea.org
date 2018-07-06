@@ -1,0 +1,217 @@
+* 微信小程序的各个版本
+#+BEGIN_SRC text
+预览版本->开发版本 ->
+       |->体验版本 -> 审核版本 -> 线上版本
+#+END_SRC
+
+1. 预览版本在开发的时候可以实时的预览效果.
+2. 开发版本是将本地的代码上传, 会生成一个具有版本号的小程序应用, 具有开发者权限的人可以通过
+   小程序开发助手来查看效果.
+3. 在小程序管理后台, 可以直接将开发版本切换成体验版本, 具有体验权限的人员就可以看到该版本的
+4. 提交审核后, 就成了审核版本.
+5. 通过微信的审核后, 就成为了线上版本.
+
+* 微信开发者工具使用
+** 添加编译模式
+在编译模式下拉框中选择添加编译模式 -> 输入对应的内容 -> 确定, 之后就会在project.config.json
+的miniprogram中添加相应的内容, 之后想运行某个页面的时候, 可以在编译模式中直接选择即可.
+
+* 新建微信小程序工程
+[[https://mp.weixin.qq.com/debug...%0A%0A%E6%9E%81%E5%AE%A2%E6%97%B6%E9%97%B4%E7%89%88%E6%9D%83%E6%89%80%E6%9C%89:%20https://time.geekbang.org/course/detail/77-1][微信官方文档]]
+
+新建一个空白的小程序工程.
+
+app.js: 会注册一个微信小程序的应用.
+app.json: 对微信小程序的一个全局配置.
+
+创建一个微信小程序的页面, 需要4个文件, 分别是: .js, .json, .wxml, .wxss
+wxml文件用来描述页面有哪些内容, 可以理解为html或xml文件.
+js文件用来注册一个微信小程序的页面, 类似于app.js
+json文件是配置信息
+wxss样式文件, 可以理解为css文件
+
+** WXS
+WXS: 一种增强wxml的脚本语言.
+#+BEGIN_SRC html
+<!-- 在当前文件中使用wxs -->
+<wxs module="m1">
+  module.exports = {
+    message: "Hello, WXS"
+  }
+</wxs>
+<view>{{m1.message}}</view>
+
+<!-- 从wxs文件中使用 -->
+<wxs src="hello.wxs" module="m2"></wxs>
+<view>{{m2.message}}</view>
+
+// hello.wxs
+module.exports = require("./m1.wxs")
+// m1.wxs
+module.exports = {
+  message: "Hello wxs file use wxs"
+}
+#+END_SRC
+默认wxs中定义的属性对外是不可见的, 需要使用exports进行导出. 使用require可以使用其他wxs文件
+同一页面中的wxs模块名不要重复, 否则后面的会覆盖前面的名称.
+
+** WXML
+WXML: WeiXin Markup Language, 是框架设计的一套标签语言, 结合组件、WXS和事件系统, 可以构建出页面的
+结构.
+
+有4种语言特性: 数据绑定, 列表渲染, 条件渲染, 模板引用
+
+数据绑定, 也可以绑定属性
+// index.wxml
+<view>
+  <text>{{message}}</text> <!-- 这种语法名称叫做: Mustache -->
+  <view hidden="{{flag ? true: false}}">Hidden</view>
+</view>
+//index.js
+Page({
+  data: {
+    message: "Hello World",
+    flag: false
+  }
+})
+
+属性: data-*, bind*/catch*
+
+列表渲染:
+#+BEGIN_SRC html
+<view>
+  <block wx:for="{{items}}" wx:for-item="item" wx:key="index">
+    <view>{{index}}:{{item.name}}</view>
+  </block>
+</view>
+
+//index.js
+Page({
+  data:{
+    items: [
+      {name: "A"},
+      {name: "B"}
+    ]
+  }
+})
+#+END_SRC
+
+条件渲染:
+#+BEGIN_SRC html
+<view wx:if="{{condition === 1}}">
+</view>
+#+END_SRC
+
+模板引用:
+#+BEGIN_SRC html
+<template name="tempItem">
+  <view>
+    <view>收件人: {{name}}</view>
+  </view>
+</template>
+
+<template is="tempItem" data="{...item}"></template>
+
+// js
+Page({
+  data: {
+    name: "Candices"
+  }
+})
+#+END_SRC
+
+文件引用方式: import, include
+import只会导入template定义, 并且只导入一层, 然后使用template name="xx"来使用
+include会导入出template定义以外的所有的内容
+** WXSS
+WXSS: Weixin Style Sheets, 是一套样式语言, 用于描述WXML的组件样式
+PPI/DPI(每英寸像素点)的计算公式: 假设屏幕分辨率是: X*Y, PPI=sqrt(X*X + Y*Y) / 屏幕尺寸
+
+外联样式的导入: @import
+样式执行的顺序是从上到下执行的, 因此在import之后, 可以修改其中的样式定义.
+
+内联属性: 与css一样使用style
+#+BEGIN_SRC html
+<view style="width: 50rpx; height:30px; background-color:{{colorvalue}};">Hello</view>
+
+//index.js
+Page({
+  data: {
+    colorvalue: "red"
+  }
+})
+#+END_SRC
+
+wxss: 支持的选择器类型有class, id, element(如: view, th), ::after, ::before
+
+选择器的优先级:
+!important 无穷大
+style: 1000
+#element: 100
+.element: 10
+elemnt: 1
+
+** WX中的JS
+WX中的jS没有dom对象.
+浏览器中的javascript由: ECMAScript, DOM, BOM组成.
+小程序宿主环境的不同: IOS使用javascriptCore, android使用X5内核, IDE使用nwjs
+
+** 小程序的开发框架
+小程序使用MINA框架进行开发, [[file:~/Learn_space/blog_notes/python/images/mina.png][小程序开发框架图]]
+
+小程序的启动分为: 热启动和冷启动.
+如果在冷启动阶段刚好有小程序更新, 则会在下次启动小程序时才能使用新版本.
+
+[[file:~/Learn_space/blog_notes/python/images/xiaochengxu_start.png][小程序启动流程]]
+
+** 小程序的生命周期
+小程序应用生命周期: 钩子函数有onLaunch, onShow, onHide, onError, 全局数据: globalData
+小程序页面生命周期: 钩子函数有onLoad, onShow, onReady, onHide, onUnload, 全局数据: data
+
+[[file:~/Learn_space/blog_notes/python/images/xiaochengxu_life.png][小程序框架声明周期]]
+
+** 小程序路由方式
+1. 初始化 - 新页面入栈
+2. 打开新页面 - 新页面入栈
+3. 页面重定向- 当前页面出栈, 新页面出栈
+4. 页面返回 - 页面不断出栈, 直到目标返回页, 新页面入栈
+5. Tab切换, 页面全部出栈, 只留下新的Tab页面
+6. 重加载, 页面全部出栈, 只留下新的页面
+
+** 小程序的事件
+事件是视图层到逻辑层的通讯方式, 事件可以将用户的行为反馈到逻辑层进行处理, 可以绑定在组件上,
+当达到触发事件就会执行逻辑层中对应的事件处理函数, 事件对象可以携带额外信息.
+
+小程序有自己的事件模型: 事件捕获阶段-> 事件处理阶段 -> 事件冒泡阶段
+** 小程序组件
+组件是视图层的基本组成单元, 自带一些功能与微信风格的样式. 一个组件通常包括: 开始标签和结束标签
+属性用来修饰这个组件, 内容在两个标签之内.
+
+大多数标签就是组件.
+[[https://developers.weixin.qq.com/miniprogram/dev/component/view.html][微信官网的视图容器组件]]
+
+* 总结
+** wx:if和hidden的区别
+1. 都有显示、隐藏的作用
+2. if条件在切换时框架会有一个局部渲染过程, 条件会销毁并重新渲染
+   hidden初始化渲染消耗较高, 通过hidden可以控制在视图上的显示和隐藏, 始终都会渲染
+3. wx:if有切换消耗更高, 切换效果频繁的建议使用hidden
+
+** rpx
+rpx是微信小程序中css的尺寸单位, rpx可以根据屏幕宽度自适应. 如果需要适配就可以使用rpx.
+rem(font size of the root element), 指相对于根元素的字体大小的单位.
+em(font size of the element), 指相对于父元素的字体大小的单位.
+
+* 评论区的问题
+服务器配置的自签名的免费的ssl，在开发工具里web-view预览没有问题，但是手机预览出现"网络出错
+轻按屏幕重新加载-1202"，这是什么原因呢
+
+1. 确认手机没有设置代理
+2. 检测下站点证书和服务器配置是否有误(https://cloud.tencent.com/product/tools#userDefined12)
+3. ssl证书与协议详细检测, https://www.ssllabs.com/ssllabs.com/ssltest/analyze.html
+4. web-view组件需要配置业务域名
+
+腾讯云提供DV免费ssl证书
+
+* 链接
+https://juejin.im/post/5b0e431f51882515497d979f: 获取微信小程序源码
