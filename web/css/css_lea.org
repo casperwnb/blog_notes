@@ -1,0 +1,85 @@
+* css3的混合模式 - mix-blend-mode
+主要适用于当文本跨域一个与自身颜色相似的区域时, 实现颜色的翻转.
+** 实例代码
+#+BEGIN_SRC html
+<!-- css -->
+.body {
+  text-align: center;
+  font-family: sans-serif;
+  color: #000;
+  background-image: linear-gradient(90deg, #fff 49.9%, #000 50%);
+}
+
+h1 {
+  font-size: 10vw;
+}
+
+<!-- html -->
+<div class="body">
+  <h1>Hello Casper</h1>
+</div>
+<!-- 在chrome浏览器中, 将其定义在body元素上时效果是无法体现的 -->
+#+END_SRC
+如果使用这样的样式, 则h1中的字的右半部分是完全不可见的. 此时可以使用mix-blend-mode, 如下:
+#+BEGIN_SRC html
+h1 {
+  color: #fff;
+  mix-blend-mode: difference;
+}
+#+END_SRC
+
+** mix-blend-mode与background-blend-mode
+mix-blend-mode属性用来定义元素与背景的混合模式, 可以是元素与背景图片的混合,
+也可以是元素与背景色的混合.
+
+background-blend-mode: 定义背景的混合模式,可以是背景图片与背景图片的混合,
+也可以是背景图片和背景色的混合.
+
+** 术语
+基色: 指当前图层之下的图层颜色
+混合色: 指当前图层的颜色
+结果色: 指混合后得到的颜色
+
+| normal   | 直接返回结果色                                                    |
+| multiply | 查看每个通道中的颜色信息并将其与混合色复合                        |
+| screen   | 与"multiply"相反,查看每个通道的颜色信息,将图像的基色与混合色结合  |
+|          | 起来产生比两种颜色都浅的第三种颜色                                |
+| overlay  | 把图像的基色与混合色相混合产生一种中间色                          |
+| darken   | 查看每个通道中的颜色信息,并选择基色或混合色中较暗的颜色作为结果色 |
+| lighten  | 查看每个通道中的颜色信息,并选择基色或混合色中较亮的颜色作为结果色 |
+| ...      | ...                                                               |
+
+** 兼容性
+#+BEGIN_SRC javascript 使用js来判断兼容性
+if ("CSS" in window && "supports" in window.CSS) {
+  var support = window.CSS.supports("mix-blend-mode", "difference");
+  support = support ? "mix-blend-mode": "no-mix-blend-mode";
+  document.documentElement.className += support;
+}
+
+h1 {
+  color: #000;
+}
+
+.mix-blend-mode body {
+  background-image: linear-gradient(90deg, #fff 49.9%, #000 50%);
+}
+
+.mix-blend-mode h1 {
+  color: #fff;
+  mix-blend-mode: difference;
+}
+#+END_SRC
+
+#+BEGIN_SRC css 使用css中的@supports
+@supports (mix-blend-mode: difference) {
+  body {
+    background-image: linear-gradient(90deg, #fff 49.9%, #000 50%);
+  }
+
+  h1 {
+    color: #fff;
+    mix-blend-mode: difference;
+  }
+}
+#+END_SRC

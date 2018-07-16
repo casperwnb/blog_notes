@@ -1,0 +1,59 @@
+* Python中的排序
+** python2中sort中的cmp参数
+如果希望元素能按照特定的方式进行排序, 可以通过compare(x, y)的形式自定义比较函数.
+其中的规律就是: 两两比较, 如果第一个参数小于第二个参数返回一个负数, 相等返回0, 如果第一个参数大于
+第二个参数返回一个正数. 返回正数时, 第一个参数会位于第二个参数之后. 
+
+使用cmp参数的效率比使用key的效率低. 可以使用functools.cmp_to_key来进行转换, 例如:
+#+BEGIN_SRC python
+import functools
+
+def mycomp(x, y):
+  return x['age'] - y['age']
+
+data = [
+  {'age': 10, 'name': '10'},
+  {'age': 18, 'name': '18'},
+  {'age': 9, 'name': '9'},
+]
+
+# 使用cmp参数进行排序
+data.sort(cmp=mycomp)
+
+# 使用key进行排序
+data.sort(key=functools.cmp_to_key(mycomp))
+
+#+END_SRC
+通过测试发现key的效率比cmp的效率低, 与官方文档说的相反. #TODO: 为什么会这样呢?
+
+** eval 与 ast.literal_eval
+eval可以将字符串进行解析并执行.
+ast.literal_eval: 只会对合法的python数据类型进行执行.
+如:
+#+BEGIN_SRC python
+X = 1
+Y = 2
+data = "X * Y"
+
+ret = eval(data)  # ret = 2
+ast.literal_eval(data)  # 抛出异常
+
+data = "[1, 2, 3]"
+ret = eval(data)
+ret = ast.literal_eval(data)  # ret = [1, 2, 3]
+#+END_SRC
+* Python测试
+[[file:contents/python_test.org][Python测试]]
+
+* Python模块
+[[file:contents/python_libmodule.org][Python模块]]
+
+* Django
+[[file:contents/django_lea.org][Django]]
+
+* Python并发编程
+[[file:contents/python_multiprocess.org][Python并发编程]]
+* Python小工具
+python实现的tail -f工具
+
+* Python编码与加密

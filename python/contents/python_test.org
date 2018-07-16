@@ -1,0 +1,23 @@
+* Python测试
+** 单元测试和测试用例
+python标准库中的模块unittest提供了代码测试工具.
+单元测试用于核实函数的某个方面没有问题.
+测试用例是一组单元测试, 这组测试一起核实函数在各种情形下的行为都符合要求.
+
+测试示例:
+#+BEGIN_SRC python
+import unittest  # 引入包
+
+class NameTestCase(unittest.TestCase):  # 继承自unittest.TestCase类
+  def setUp(self):  # 在每次测试函数执行前都会执行一次,可用于资源的准备,即初始化测试时用的数据
+    pass
+
+  def tearDown(self):  # 每个测试函数执行完成后用于回收资源
+    pass
+
+  def test_myfunc(self):  # 以test开头的方法将自动运行
+    pass
+
+unittest.main()
+#+END_SRC
+

@@ -1,0 +1,287 @@
+* python并发编程
+** GIL
+Python解释器是非线程安全的.这意味着当从线程内尝试安全的访问Python对象的时候将有一个全局的强制锁.
+在任何时候仅仅一个单一的线程能够获取Python对象或者C API,每100个字节的Python指令解释器将重新获取锁.
+
+** 同步机制
+*** semaphore - 信号量
+信号量同步基于内部计数器, 每调用一次acquire()计数器减1; 每调用一次release(),计数器加1.
+当计数器为0时, acquire()调用被阻塞.
+
+#+BEGIN_SRC python
+# encoding: utf8
+
+import time
+from random import random
+from threading import Thread, Semaphore
+
+seam = Semaphore(3)
+
+def foo(tid):
+    with seam:
+        print('{} accquire sema'.format(tid))
+        wt = random() * 2
+        time.sleep(wt)
+    print("{} release sema".format(tid))
+
+threads = []
+for i in xrange(5):
+    t = Thread(target=foo, args=(i, ))
+    threads.append(t)
+    t.start()
+
+for t in threads:
+    t.join()
+
+#+END_SRC
+*** Lock - 锁
+Lock也叫做互斥锁, 即相当于信号量为1.
+#+BEGIN_SRC python
+import time
+from threading import Thread, Lock
+
+value = 0
+lock = Lock()
+
+def handlock():
+  global value
+  with lock:
+    v = value + 1
+    time.sleep(0.0001)
+    value = v
+
+threads = []
+for i in xrange(100):
+  t = Thread(target=handlock)
+  t.start()
+  threads.append(t)
+
+for t in threads:
+  t.join()
+
+print(value)
+#+END_SRC
+
+*** RLock - 可重入锁
+acquire能够不被阻塞的被同一个线程调用多次. 需要注意的是release需要调用与acquire相同的次数才能
+释放锁.
+
+#+BEGIN_SRC python
+import time
+from random import random
+from threading import Thread, RLock
+
+lock = RLock()
+
+def foo(tid):
+    with lock:
+        print('{} accquire rlock'.format(tid))
+        wt = random() * 2
+        time.sleep(wt)
+        with lock:
+            print("{} accquire rlock again".format(tid))
+    print("{} release sema".format(tid))
+
+threads = []
+for i in xrange(5):
+    t = Thread(target=foo, args=(i, ))
+    threads.append(t)
+    t.start()
+
+for t in threads:
+    t.join()
+#+END_SRC
+*** Condition - 条件
+一个线程等待特定条件, 另一个线程发出特定条件满足的信号.
+最好的例子就是: 生产者/消费者模型
+
+#+BEGIN_SRC python
+# encoding: utf8
+
+import time
+import threading
+
+def consumer(cond):
+    t = threading.currentThread()
+    with cond:
+        # wait方法创建了一个名为waiter的锁, 并且设置锁的状态为locked. 这个waiter锁用于线程间的通讯.
+        cond.wait()
+        print('{}: resource is available to consumer'.format(t.name))
+
+def producer(cond):
+    t = threading.currentThread()
+    with cond:
+        print("{}: Making resource available".format(t.name))
+        # 释放waiter锁, 唤醒消费者
+        cond.notifyAll()
+
+condition = threading.Condition()
+
+c1 = threading.Thread(name="c1", target=consumer, args=(condition, ))
+c2 = threading.Thread(name="c2", target=consumer, args=(condition, ))
+p = threading.Thread(name="p", target=producer, args=(condition, ))
+
+# 多个消费者会消费同一条数据
+c1.start()
+c2.start()
+p.start()
+#+END_SRC
+
+*** Event
+一个线程发送/传递事件, 另外的线程等待事件的触发.
+#+BEGIN_SRC python
+# encoding: utf8
+
+import time
+import threading
+from random import randint
+
+TIMEOUT = 2
+
+def consumer(event, l):
+    t = threading.currentThread()
+    while True:
+        event_is_set = event.wait(TIMEOUT)
+
+        if event_is_set:
+            try:
+                integer = l.pop()
+                print("{} poped from list by {}".format(integer, t.name))
+                event.clear()  # 事件处理完之后需要清除
+                time.sleep(0.0001)
+            except IndexError:
+                print("exception")
+        
+
+def producer(event, l):
+    t = threading.currentThread()
+    while 1:
+        integer = randint(100, 200)
+        l.append(integer)
+        print("{} append to list by {}".format(integer, t.name))
+        event.set()
+        
+event = threading.Event()
+l = []
+threads = []
+
+for name in ("c1", "c2"):
+    t = threading.Thread(target=consumer, name=name, args=(event, l))
+    t.start()
+    threads.append(t)
+
+p = threading.Thread(target=producer, name="p", args=(event, l))
+p.start()
+threads.append(p)
+for t in threads:
+    t.join()
+#+END_SRC
+不会被重复消费.
+
+*** Queue
+Queue的4个主要方法:
+put: 向队列中添加一个项
+get: 从队列中删除并返回一个项
+task_done: 当某一项任务完成时调用
+join: 阻塞直到所有的项目都被处理完
+#+BEGIN_SRC python
+# encoding: utf8
+
+import time
+import threading
+from random import random
+from Queue import Queue, PriorityQueue
+
+q = Queue()
+
+# 创建优先级队列
+q = PriorityQueue()
+
+def double(n):
+    return n * 2
+
+
+def producer():
+    while 1:
+        wt = random()
+        time.sleep(wt)
+        q.put((double, wt))
+
+def consumer():
+    t = threading.currentThread()
+    while 1:
+        task, arg = q.get()
+        print("name={}, arg={}, result={}".format(t.name, arg, task(arg)))
+        q.task_done()  # 某一项任务完成时调用
+
+
+for i, target in enumerate((producer, consumer, consumer)):
+    t = threading.Thread(target=target, name=i)
+    t.start()
+#+END_SRC
+
+** 线程池
+线程池在标准库中是有体现的, 只是在官方文档中基本没有提及.
+#+BEGIN_SRC python
+# 使用标准库中
+from multiprocesing.pool import ThreadPool
+pool = ThreadPool(5)
+pool.map(lambda x: x ** 2, range(5))
+#+END_SRC
+
+#+BEGIN_SRC python 自己实现的线程池
+# encoding: utf8
+
+import time
+import threading
+from random import random
+from Queue import Queue
+
+def double(n):
+    return n * 2
+
+class Worker(threading.Thread):
+    def __init__(self, queue, name=None):
+        super(Worker, self).__init__()
+        self._q = queue
+        # 将线程设置为daemon(后台模式)守护进程, 表示主线程退出时,守护线程也会自动退出
+        # 如果使用默认daemon=False的话,非daemon的线程会阻塞主线程的退出.
+        # 所以即使queue队列的任务已经完成线程池依然阻塞无限循环等待任务,使得主线程也不会退出
+        self.daemon = True
+        if name:  # 设置线程名称
+            self.name = name
+        self.start()
+
+    def run(self):
+        while 1:
+            f, args, kwargs = self._q.get()
+            try:
+                print("USE: {}".format(self.name))
+                print(f(*args, **kwargs))
+            except Exception as e:
+                print(e)
+            self._q.task_done()
+
+class ThreadPool(object):
+    def __init__(self, num_t=5):
+        self._q = Queue(num_t)
+
+        for _ in xrange(num_t):
+            Worker(self._q)
+
+    def add_task(self, f, *args, **kwargs):
+        self._q.put((f, args, kwargs))
+
+    def wait_complete(self):
+        # 使用q.join()表示主线程会阻塞到queue已经是清空的.
+        # 线程每处理完一个数据, 就发送一个task_done信号, 用于通知
+        # 如果是想要线程做完任务后就结束, 此时使用thread.join()
+        self._q.join()
+
+pool = ThreadPool()
+for _ in xrange(8):
+    wt = random()
+    pool.add_task(double, wt)
+    time.sleep(wt)
+pool.wait_complete()
+#+END_SRC

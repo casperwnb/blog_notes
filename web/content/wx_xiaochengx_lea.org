@@ -21,8 +21,16 @@
 
 新建一个空白的小程序工程.
 
-app.js: 会注册一个微信小程序的应用.
-app.json: 对微信小程序的一个全局配置.
+** 微信小程序的配置信息
+[[https://developers.weixin.qq.com/miniprogram/dev/framework/config.html][小程序配置的官方文档]]
+
+app.js: 会注册一个微信小程序的应用
+app.json: 对当前微信小程序的一个全局配置, 包括了小程序的所有页面路径、界面表现、网络超时时间、
+底部tab等.
+
+<page>.json: 用来表示pages/xx目录下的page.json, 可以独立定义每个页面的一些属性.
+
+project.config.json: 在工具上做的任何配置都会写入该文件, 
 
 创建一个微信小程序的页面, 需要4个文件, 分别是: .js, .json, .wxml, .wxss
 wxml文件用来描述页面有哪些内容, 可以理解为html或xml文件.
@@ -189,6 +197,51 @@ WX中的jS没有dom对象.
 
 大多数标签就是组件.
 [[https://developers.weixin.qq.com/miniprogram/dev/component/view.html][微信官网的视图容器组件]]
+
+* 微信API
+** wx.request
+该API的header字段中不能设置referer.
+该接口返回一个requestTask的对象.
+
+* 小程序调试环境搭建
+** whistle安装
+[[http://wproxy.org/whistle/install.html][web安装参考]]
+
+1. 安装nodejs
+   访问[[https://nodejs.org/en/][nodejs官网]], 下载LTS版本, 点击安装即可
+   安装完成后, 使用: node -v 检查是否安装成功
+2. whistle安装
+   npm install -g whistle
+   npm默认镜像在国外, 如果无法安装或者安装很慢, 可以使用taobao的镜像安装:
+   npm install whistle -g --registry=https://registry.npm.taobao.org
+3. 查看是否安装成功
+   w2 help
+4. 启动
+   w2 start
+   如果要防止其他人访问配置页面, 可在启动时加上登录用户名和密码:
+   -n yourusername -w yourpassword
+   
+   w2 restart  # 重启
+   w2 stop  # 停止
+   w2 run  # 启动调试模式
+
+** 本地开发
+1. 设置微信开发者工具
+   点击菜单中的设置->代理设置->手动设置代理, 填写后台的ip地址与端口即可
+2. 运行后台程序
+
+* 微信小程序部署
+** 开发环境部署
+1. 登录微信公众平台, 点击设置中的开发者工具, 点击开通腾讯云.
+2. 安装微信开发者工具, 并建立一个腾讯云Node.js启动模板
+3. 便于本地调试, 可以在本地建立依赖
+   进入创建的项目的serve目录中, 并执行安装命令
+   cd xxx/server && npm install
+4. 点击开发者工具中的腾讯云图标, 并选择上传测试代码, 选择模块上传(勾选全部),
+   然后勾选部署后自动安装依赖, 确定上传
+5. 上传代码完成后, 点击右上角的"详情", 就可以看到腾讯云自动分配的开发环境域名.
+6. 完整复制开发环境request域名(包括https://), 然后打开编辑器的client/config.js, 将复制的域名
+   填入host中并保存即可.
 
 * 总结
 ** wx:if和hidden的区别

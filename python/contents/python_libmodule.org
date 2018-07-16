@@ -1,0 +1,133 @@
+* sys包
+** 一般实例
+#+BEGIN_SRC python
+import sys
+print(sys.executable)  # 获取当前python的执行完整路径
+
+# 获取某个模块的位置
+import sys, CGIHTTPServer
+print(sys.modules["CGIHTTPServer"])
+
+# 获取python的版本号
+import sys
+print(sys.version_info)
+PY3 = sys.version_info >= (3, 1, 2)  # 判断当前python的版本是否是大于3.1.2版
+
+# 获取操作系统平台
+import sys
+print(sys.platform)
+
+#+END_SRC
+
+** _getframe()
+#+BEGIN_SRC python
+import sys
+
+frame = sys._getframe()
+cur_file = frame.f_code.co_filename  # 获取当前文件名, 也可以通过__file__获取
+
+def test():
+    frame = sys._getframe(0)  # 等价于 sys._getframe()  # 获取test的frame信息
+    cur_fun_name = frame.f_code.co_name  # 获取当前函数的名称
+    cur_line = frame.f_lineno  # 获取当前行号
+    print(dir(frame))
+
+    def test_inner():
+        frame_inner = sys._getframe(0)  # 获取test_inner的frame信息
+        test_frame = frame_inner.f_back  # 获取test的frame信息
+        test_frame = sys._getframe(1)  # 获取test的frame信息
+    
+#+END_SRC
+* os包
+#+BEGIN_SRC python
+import os
+os.system("ls")  # 执行ls命令
+#+END_SRC
+
+* built-in的包的使用
+#+BEGIN_SRC python
+v = "version=1.0"
+sysinfo = {}
+exec(v, sysinfo)
+print(sysinfo["version"])  # 输出v中定义的version版本号
+#+END_SRC
+
+* codecs包
+#+BEGIN_SRC python
+import chardet  # pip install chardet
+f_name = "xxx"
+f = open(f_name)
+data = chardet.detect(f.read())
+print("file_encoding: {}".format(data["encoding"]))
+
+with open(f_name, "r", encoding=data["encoding"]) as ff:
+    pass
+#+END_SRC
+* BaseHTTPServer
+BaseHTTPServer模块在Python3中已经被合并到http.server中. 此模块提供了两个类让开发者实现
+HTTP Server: BaseHTTPServer.HTTPServer和BaseHTTPServer.BaseHTTPRequesthandler.
+
+BaseHTTPServer.HTTPServer(server_adr, RequestHandlerCls), 继承了SocketServer.BaseServer,
+创建和监听socket, 把请求转发给 handler 去处理, 主要的工作都是在 BaseHTTPRequestHandler 中处理的.
+
+BaseHTTPServer.BaseHTTPRequestHandler(req, client_adr, server): 该类用来处理到达服务器的HTTP请求,
+自身不能响应任何实际的HTTP请求, 必须子类化来处理每个请求方法(如:GET或POST).
+#+BEGIN_SRC python 一个简单的示例
+import BaseHTTPServer
+
+class RequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    page = '''\
+<html>
+<body>
+<p>Hello, MyWeb!</p>
+</body>
+</html>
+'''
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.send_header("Content-Length", str(len(self.page)))
+        self.end_headers()
+        self.wfile.write(self.page)
+
+    def do_POST(self):
+        print self.path
+        self.rfile.read(int(self.headers["content-length"]))
+
+serverAddress = ("", 8080)
+server = BaseHTTPServer.HTTPServer(serverAddress, RequestHandler)
+server.serve_forever()
+#+END_SRC
+* timeit
+timeit用于准确测量小段代码的执行时间.
+
+timeit模块中有三个函数:
+timeit.timeit(stmt="pass", setup="pass", timer=<default_timer>, number=1000000):
+创建一个timer实例, stmt是测量的语句或函数, setup:初始化代码或构建环境的导入.
+timer: 计时函数, number: 每一次测量中语句被执行的次数.
+
+timeit.repeat(stmt='pass', setup='pass', timer=<default timer>, repeat=3, number=1000000):
+创建一个Timer实例, 指定整个试验的重复次数,返回一个包含了每次试验的执行时间的列表.
+利用这一函数可以很方便得实现多次试验取平均的方法.
+
+timeit.default_timer(): 默认的计时器, 一般是time.perf_counter(), time.perf_counter()方法能够
+在任一平台提供最高精度的计时器(它也只是记录了自然时间, 记录自然时间会被很多其他因素影响,
+例如计算机的负载)
+
+#+BEGIN_SRC python
+import timeit
+
+def test():
+    L = []
+    for i in range(100):
+        L.append(i)
+
+if __name__ == '__main__':
+    # setup 从当前的文件中引入test函数并改名为tfunc
+    print timeit.timeit("tfunc()", setup="from __main__ import test as tfunc")
+
+    x = list(range(2000000))
+    t0 = timeit.timeit("x.pop(0)", "from __main__ import x", number=1000)
+    print("cost {} seconds ".format(t0))
+#+END_SRC

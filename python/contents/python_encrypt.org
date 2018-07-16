@@ -1,0 +1,45 @@
+* binascii
+** 示例
+#+BEGIN_SRC python python3
+import binascii
+
+binascii.b2a_hex('阅读'.encode("utf-8"))
+binascii.a2b_hex(b'e99885e8afbb')
+#+END_SRC
+
+* URL编码
+正常的URL中只能包含ASCII字符的. URL编码就是一种浏览器用来避免url中出现特殊字符的编码方式.即
+将超出ASCII范围的字符转换成带%的16进制格式.
+#+BEGIN_SRC python python3
+from urllib import parse
+
+parse.quote('阅读')
+parse.unquote('%E9%98%85%E8%AF%BB')
+#+END_SRC
+
+* Base64编码
+Base64是一种用64个字符来表示任意二进制数据的方法.
+64个字符包括: 大小写英文字符, 10个数字, "+", "/", 编码后的数据大小~=编码前数据的4/3.
+
+* MD5
+#+BEGIN_SRC python
+import hashlib
+
+data = "My Name is Casper"
+hl = hashlib.md5()
+hl.update(data.encode("utf-8"))
+print(hl.hexdigest())
+#+END_SRC
+
+MD5的长度默认为128bit, 为了表示方便将二进制转成了16进制, 因此MD5的长度为32个字符.
+
+* DES
+DES算法为密码体制中的对称密码体制, 又被称为美国数据加密标准.
+DES是一个分组加密算法, 典型的DES以64位为分组对数据加密, 加密和解密用的是同一个算法.
+
+DES算法的入口参数有三个: Key、Data、Mode. 其中Key为7个字节共56位,是DES算法的工作密钥;
+Data为8个字节64位, 是要被加密或被解密的数据; Mode为DES的工作方式,有两种:加密或解密.
+
+密钥长64位, 密钥事实上是56位参与DES运算(第8、16、24、32、40、48、56、64位是校验位,
+使得每个密钥都有奇数个1), 分组后的明文组和56位的密钥按位替代或交换的方法形成密文组.
+

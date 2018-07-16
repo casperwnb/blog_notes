@@ -1,0 +1,79 @@
+* Python游戏开发 - 环境搭建
+1. pip的安装, 如果有pip则不用安装pip
+   访问https://bootstrap.pypa.io/get-pip.py, 获取get-pip.py脚本, 然后使用python 运行该脚本
+2. pygame的安装
+   Ubuntu: apt-get install python-pygame python3-dev mercurial libsdl-image1.2-dev libsdl2-dev \
+   libsdl-ttf2.0-dev libsdl-mixer1.2-dev libportmidi-dev libswscale-dev libsmpeg-dev \
+   libavformat-dev libavcode-dev python-numpy
+   然后执行: pip install --user hg+http://bitbucket.org/pygame/pygame
+
+   MacOS: brew install hg sdl sdl_image sdl_ttf sdl_mixer portmidi
+   pip install --user hg+http://bitbucket.org/pygame/pygame
+
+3. 验证
+   在python的命令行中, 执行import pygame, 没有错误则表示安装成功
+
+* 开始游戏项目 - 飞机大战
+** pygame的程序框架
+#+BEGIN_SRC python
+import sys
+
+import pygame
+
+def main():
+  # 初始化游戏并创建一个屏幕对象
+  pygame.init()
+  
+  screen_w, screen_h = 450, 300
+  screen = pygame.display.set_mode((screen_w, screen_h))
+  pygame.display.set_caption("caption title")
+  
+  img = pygame.image.load("images/ship.bmp")
+  rect = img.get_rect()
+  rect.centerx = screen.get_rect().centerx
+  rect.bottom = screen.get_rect().bottom
+
+  # 开始游戏的主循环
+  while True:
+    # 事件监听
+    for event in pygame.event.get():
+      if event.type == pygame.QUIT:
+        sys.exit()
+
+    screen.fill((100, 200, 240))  # 屏幕颜色填充
+
+    screen.blit(img, rect)  # 绘制图片
+    # 在绘制图像时一定要注意先后的顺序, 如果先绘图然后再绘制屏幕的颜色, 就会将图片覆盖住
+    # 让最近绘制的屏幕可见, 需要在主循环中执行, 否则界面可能没有画面
+    pygame.display.flip()
+
+if '__main__' == __name__:
+  main()
+
+#+END_SRC
+** 游戏素材
+使用pygame.blit()绘制图像, pygame默认加载位图.
+
+要将游戏元素居中, 可设置相应rect对象的属性center, centerx, centery.
+边缘对齐, 可使用属性top, bottom, left, right.
+调整游戏元素的水平或垂直位置, 可使用属性x和y.
+
+pygame中原点(0,0)位于屏幕左上角, 向右下方移动时, 坐标值将增大.
+
+** 响应按键
+每当用户按键时, 都将在pygame中注册一个事件, 事件通过方法pygame.event.get()获取.
+
+按键值表示: 字母按键: K_a, K_b等表示按下了字符a, b键.
+command或者win键: K_LMETA, K_RMETA
+alt或option键: K_LALT, K_RALT
+数字键: K_0, K_1
+功能键: K_F1, K_F12
+
+#+BEGIN_SRC python
+# 相应组合按键
+keys = pygame.key.get_pressed()
+
+# 当同时按下cmd+w键时, 退出程序
+if keys[pygame.K_LMETA] and keys[pygame.K_w]:
+    sys.exit()
+#+END_SRC

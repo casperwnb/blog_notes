@@ -1,0 +1,14 @@
+* xx
+https://www.jianshu.com/p/cb76310bc0e2
+https://docs.djangoproject.com/en/2.0/topics/db/multi-db/
+http://blog.jobbole.com/21351/
+https://www.the5fire.com/django-metaclass-compatibility.html
+https://developer.mozilla.org/zh-CN/docs/Learn
+https://github.com/the5fire/typeidea
+ELK
+
+* manage.py
+该文件设定了一个环境变量, 指定了django项目的settings文件. 之后调用函数
+execute_from_command_line(sys.argv), 该函数定义在django.core.management中的__init__.py文件中
+该函数实例化了一个ManagementUtility对象.
+
