@@ -49,11 +49,17 @@ ret = ast.literal_eval(data)  # ret = [1, 2, 3]
 [[file:contents/python_libmodule.org][Python模块]]
 
 * Django
-[[file:contents/django_lea.org][Django]]
+[[file:contents/djangosrc_lea.org][Django源码学习]]
+[[file:contents/django_practise.org][Django框架使用]]
 
 * Python并发编程
 [[file:contents/python_multiprocess.org][Python并发编程]]
+
 * Python小工具
 python实现的tail -f工具
 
-* Python编码与加密
+* Python小游戏
+[[file:contents/python_game.org][Python小游戏]]
+
+* Python数据处理
+[[file:contents/python_data_gen.org][Python数据处理]]

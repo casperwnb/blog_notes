@@ -1,0 +1,7 @@
+* Mysql中的UTF8
+MySQL 的utf8mb4是真正的UTF-8实现.
+MySQL 的utf8是一种"专属的编码", 它能够编码的 Unicode 字符并不多.
+
+因此所有在使用"utf8"的mysql和Mariadb用户都应该改用"utf8mb4", 永远不要使用utf8.
+
+[[https://mathiasbynens.be/notes/mysql-utf8mb4][将mysql中的utf8转为utf8mb4]]

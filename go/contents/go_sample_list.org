@@ -1,0 +1,103 @@
+* Go错题集
+** 不要对Go并发函数的执行时机做任何假设
+#+BEGIN_SRC go
+import (
+	"fmt"
+	"runtime"
+	"time"
+)
+func main(){
+	names := []string{"lily", "yoyo", "cersei", "rose", "annei"}
+	for _, name := range names{
+		go func(){
+			fmt.Println(name)
+		}()
+        // time.Sleep(time.Second)
+	}
+	runtime.GOMAXPROCS(1)
+	runtime.Gosched()
+}
+// 此时答案输出什么?
+// 如果打开time.Sleep的注释, 输出又会是什么呢?
+#+END_SRC
+** 寻址问题
+假设T类型的方法上接收器既有T类型的, 也有*T类型的, 就不可以在不能寻址的T值上调用*T的接收器的方法.
+#+BEGIN_SRC go
+import (
+	"fmt"
+)
+
+type Lili struct {
+	Name string
+}
+
+func (Lili *Lili) fmtPointer() {
+	fmt.Println("poniter")
+}
+func (Lili Lili) fmtReference() {
+	fmt.Println("reference")
+}
+
+func main() {
+    // 因为li是Lili的一个实例, 可以寻址, 因此可以调用*Lili的方法
+	li := Lili{}
+	li.fmtPointer()
+
+    // 编译错误
+	//Lili{}.fmtPointer()
+
+    Lili{}.fmtReference()
+}
+#+END_SRC
+
+** 一个包含nil指针的接口不是nil接口
+#+BEGIN_SRC go
+import (
+	"bytes"
+	"fmt"
+	"io"
+)
+const debug = false
+func main(){
+	var buf *bytes.Buffer
+	if debug{
+		buf = new(bytes.Buffer)
+	}
+	f(buf)
+}
+func f(out io.Writer){
+	if out != nil{
+		fmt.Println("surprise!")
+	}
+}
+// 依然输出suprise, 为什么?
+#+END_SRC
+原因如下:
+这牵扯到一个概念, 是关于接口值的. 概念上讲一个接口的值分为两部分: 一部分是类型, 一部分是类型对应
+的值, 分别叫: 动态类型和动态值. 类型系统是针对编译型语言的, 类型是编译期的概念.
+因此类型不是一个值。在上述代码中, 给f函数的out参数赋了一个*bytes.Buffer的空指针,
+所以out的动态值是nil, 然而它的动态类型是bytes.Buffer, 意思是:"A non-nil interface containing
+a nil pointer", 所以"out!=nil"的结果依然是true. 但是对于直接的bytes.Buffer类型的判空
+不会出现此问题.
+
+修改方法是: 将var buf *bytes.Buffer改为var buf bytes.Buffer.
+** json反序列化数字到interface{}类型的值中, 默认解析为float64类型
+** 变量赋值
+#+BEGIN_SRC go
+var text string
+
+func function() (string, error) {
+	return "Hello", errors.New("error")
+}
+func test() {
+	text, a := function()
+	//a := errors.New("erro")
+	//text, a = function()
+	fmt.Println(a.Error())
+}
+
+func main() {
+	test()
+}
+// 编译通不过, 原因是":="声明了一个与全局变量同名的局部变量text, 因此就导致没有用到这个变量
+#+END_SRC

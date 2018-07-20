@@ -1,0 +1,28 @@
+* 创建项目
+django-admin.py startproject <pro_name>  # 创建项目, 以pro_name为项目的根目录
+django-admin.py startproject <pro_name> .  # 注意最后的".", 会以当前目录为项目的根目录
+
+* 创建数据库
+python manage.py makemigrations <model_name>
+python manage.py migrate
+
+注意: 全新的项目可以只执行命令: python manage.py migrate
+
+添加新的数据模型:
+python manage.py makemigrations <model_name>
+python manage.py migrate
+
+* 运行服务
+python manage.py runserver <ip:port>
+
+* 创建应用程序
+python manage.py startapp <app_name>
+
+* 激活django的应用程序
+需要在项目的settings.py中的INSTALLED_APPS中添加该应用名称.
+每次对模型中的数据结构进行修改后, 都需要执行命令.
+python manage.py makemigrations <model_name>
+python manage.py migrate
+
+* Django建立超级用户
+python manage.py createsuperuser
