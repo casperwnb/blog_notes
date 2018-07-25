@@ -1,0 +1,46 @@
+* Emacs配置
+[[file:content/emacs_setting.org][Emacs配置]]
+
+* Org-Mode
+[[file:content/Org_lea.org][Org-Mode学习]]
+
+* Emacs遇到的问题
+** elpy使用ipython5.x乱码问题
+添加配置:
+#+BEGIN_SRC lisp
+(setenv "IPY_TEST_SIMPLE_PROMPT" "1")
+#+END_SRC
+
+** 屏蔽flake8的一些检查
+在HOME目录建立 .config/flake8文件
+然后在文件中添加如下内容:
+#+BEGIN_SRC text
+[flake8]
+ignore =
+    #  F812: list comprehension redefines ...
+    F812,
+    # H101: Use TODO(NAME)
+    H101,
+    # H202: assertRaises Exception too broad
+    H202,
+    # H233: Python 3.x incompatible use of print operator
+    H233,
+    # H301: one import per line
+    H301,
+    # H306: imports not in alphabetical order (time, os)
+    H306,
+    # H401: docstring should not start with a space
+    H401,
+    # H403: multi line docstrings should end on a new line
+    H403,
+    # H404: multi line docstring should start without a leading new line
+    H404,
+    # H405: multi line docstring summary not separated with an empty line
+    H405,
+    # H501: Do not use self.__dict__ for string formatting
+    H501,
+    # W293: blank line contains whitespace
+    W293,
+    # E303: too many blank lines
+    E303,
+#+END_SRC

@@ -1,0 +1,13 @@
+* 链接的使用
+http://www.astro.uva.nl/~dominik            on the web
+file:/home/dominik/images/jupiter.jpg       file, absolute path
+/home/dominik/images/jupiter.jpg            same as above
+file:papers/last.pdf                        file, relative path
+file:projects.org                           another Org file
+docview:papers/last.pdf::NNN                open file in doc-view mode at page NNN
+
+对于文件链接,可以用::后面增加定位符的方式链接到文件的特定位置,定位符可以是行号或搜索选项.如:
+file:~/code/main.c::255                     进入到 255 行
+file:~/xx.org::My Target                    找到目标'My Target'
+file:~/xx.org/::#my-custom-id               查找自定义 id 的项
+

@@ -1,0 +1,109 @@
+* 配置
+** 依赖安装以及插件安装
+pip install elpy epc jedi ipython rope flake8 pyflakes autopep8 yapf importmagic
+
+brew install global
+
+将emacs.d 软连接到.emacs.d目录下, 然后使用emacs的包管理安装
+elpy, color-theme-sanityinc-tomorrow color-theme-sanityinc-solarized 
+color-theme, lua-mode, nginx-mode, emmet-mode, web-mode, epc, auto-complete
+py-autopep8 py-yapf helm projectile htmlize impatient-mode simple-httpd
+company window-numbering which-key
+
+* 快捷键
+** 常用
+M-x edebug-defun可以调试elisp代码
+代码跳转的快捷键:
+Alt + . 跳转到符号定义
+Alt + * 回到跳转的地方
+
+代码提示选择需要使用Alt+n/p
+
+C-c f f: 在光标处打开文件
+** 移动命令
+C-v: 向后移动一屏, Alt-V: 向前移动一屏
+M-A: 移动到一段的开始, M-e: 一段的结尾
+C-l: 将当前行至于中间
+M-r: 让光标在一屏的开始, 中间, 尾部来回跳转
+M-<: buffer的开头, M->: buffer的结尾
+M-g c/g: 跳转到字符/行
+C-M-f/b: forward-sexp/backward-sexp: 前进/后退到下一个语句
+C-M-k: kill-sexp: 删除
+** 帮助
+按键前缀 C-h: 例如C-x r C-h: 就会显示以C-x r为键前缀的所有键绑定
+按键记忆法:
+C-x prefix: 一般用于默认/全局键绑定
+C-c prefix: 一般用于用户定义
+C-u prefix: 根据后面的命令表现不同,
+C-<number>: 传递一个数给命令, 通常情况下表示执行命令多少次
+
+C-h m <=> describe-mode: 查看当前buffer的所有键绑定
+C-h w <=> where-is <cmd>: 查看cmd绑定的键以及在菜单中的位置
+C-h c <=> describe-key-briefly <keys>: 查看按键序列绑定的是什么命令
+C-h k <=> describe-key <keys>: 查看键绑定的命令以及详细信息
+C-h e <=> view-echo-area-message: 查看Message buffer
+C-h v <=> describe-variable <var>: 查看变量的信息
+
+M-x info: C-h i: 查看emacs的所有info信息
+M-x info-emacs-manual, C-h r, <f1> r: 查看emacs的用户手册
+
+M-x man: 查看man信息, 调用外部的man
+M-x woman: 查看man的TOPIC信息, 不使用外部的man程序
+
+** helm
+C-c h C-c f: 最近打开的文件
+C-c h i: 显示当前的文档结构
+C-c h m: 查看man page
+C-c h /: 使用正则查找当前目录下的文件
+C-c h l: locate一个文件
+C-c h r: 测试regexp
+C-c h b: 继续刚刚执行的helm命令
+M-x helm-occur: occur函数的helm接口
+
+** projectile
+C-c p o: 对当前工程下的所有buffer调用occur函数
+C-c p s g: 对当前工程下的所有文件进行grep
+C-c p b 当前工程的buffer列表
+C-c p f 当前工程的文件列表
+C-c p d 当前工程的目录列表
+C-c p e 当前工程的最近访问文件列表
+C-c p p 在多个工程之间切换: #TODO: 如何才算是不同的工程
+
+** bookmark
+C-x r m: bookmark-set: 在光标处建立一个书签
+C-x r b: bookmark-jump: 书签跳转
+C-x r l: bookmark-bmenu-list: 列出书签
+
+可以给non-file buffers添加书签.
+** ibuffer
+可以在ibuffer中进行的操作:
+/m major-mode name: 只显示major-mode的文件
+/g 在执行了/m之后, 执行/g, 输入group name则可以对该筛选命名.
+// 移除之前的选择
+o: 打开该buffer,并跳转到该buffer中
+C-o: 打开buffer,但光标留在ibuffer中.
+g: 刷新ibuffer
+m: 标记一个buffer, u: 取消标记
+A: 查看标记的buffer, S: 保存标记的buffer, D: 删除标记的buffer, V:放弃标记buffer的修改
+e,f,RET: 打开光标所处的
+=: 将buffer与该buffer对应的文件进行比对
+,: 反转排序模式
+s <key>: 排序方式
+** ido
+在ido模式下, 按下c-f: 启用通配符模式. c-d: 使用dired打开
+
+文件另存: write-file
+
+* 编译安装Emacs
+安装依赖: apt-get install libgtk-3-dev libgtk-3-common libgtk-3-0 \
+libtiff5-dev libpng12-dev libjpeg-dev libgif-dev libgnutls-dev libxml2-dev
+
+下载源码: git clone http://repo.or.cz/r/emacs.git
+编译方法1: cd emacs-<version>* ./autogen.sh
+编译方法2: ./configure --with-x-toolkit=gtk3 [--prefix=/path/to/install]
+make && make install
+
+在使用./configure如果提示依赖找不到, 则需要手动安装依赖.
+
+* 参考博客
+https://github.com/lujun9972/emacs-document

@@ -1,0 +1,69 @@
+* 参考资料
+http://www.buildyourownlisp.com/contents: 英文
+https://www.gitbook.com/book/ksco/build-your-own-lisp: 中文
+https://www.cprogramming.com/debugging/valgrind.html: 内存
+
+* C
+** 头文件说明
+stdin, stdout: stdio.h
+free, malloc: stdlib.h
+
+* 头文件的引用与安装
+** ""与<>引入头文件的区别
+""引入头文件会先搜索当前目录, 然后再搜索系统目录
+<>会先搜索系统目录
+
+** editline
+Mac: 安装Command Line Tools后会自动安装, 并且只需include <editline/readline.h>即可
+
+Ubuntu: apt-get install libedit-dev
+Fedora: yum install libedit-dev*
+
+* 编译
+cc -std=c99 -Wall <filename.c> -ledit
+
+** 编译mpc
+将mpc.h与mpc.c文件放到同一目录中, 在想使用该头文件的文件中添加头文件引入功能: #include "mpc.h"
+然后编译:
+gcc -std=c99 -Wall <filename.c> mpc.c -ledit -lm
+
+* 预处理
+** 操作系统相关
+1. windows32/64平台 _WIN32都会被定义, 而_WIN64只在64位windows上定义
+2. 所有的apple系统都会定义 __APPLE__, 包括MacOSX和iOS
+3. TARGET_IPHONE_SIMULATOR 是 TARGET_OS_IPHONE 的子集
+4. TARGET_OS_IPHONE 是 TARGET_OS_MAC的子集, 也就是说iOS模拟器上会同时定义这三个宏.
+   因此判断的时候要先判断子集
+4. 另外mac上可以用以下命令行获取GCC定义的预编译宏:
+   gcc -arch i386 -dM -E - < /dev/null | sort (i386可替换为arm64等)
+#+BEGIN_SRC c
+#ifdef _WIN32
+   //define something for Windows (32-bit and 64-bit, this part is common)
+   #ifdef _WIN64
+      //define something for Windows (64-bit only)
+   #else
+      //define something for Windows (32-bit only)
+   #endif
+#elif __APPLE__
+    #include "TargetConditionals.h"
+    #if TARGET_IPHONE_SIMULATOR
+         // iOS Simulator
+    #elif TARGET_OS_IPHONE
+        // iOS device
+    #elif TARGET_OS_MAC
+        // Other kinds of Mac OS
+    #else
+    #   error "Unknown Apple platform"
+    #endif
+#elif __ANDROID__
+    // android
+#elif __linux__
+    // linux
+#elif __unix__ // all unices not caught above
+    // Unix
+#elif defined(_POSIX_VERSION)
+    // POSIX
+#else
+#   error "Unknown compiler"
+#endif
+#+END_SRC
