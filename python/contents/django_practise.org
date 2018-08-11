@@ -26,3 +26,7 @@ python manage.py migrate
 
 * Django建立超级用户
 python manage.py createsuperuser
+
+* 数据导出
+python manage.py dumpdata >> backup.json  # 数据导出
+python manage.py loaddata backup.json  # 数据导入

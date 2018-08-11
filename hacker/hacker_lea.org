@@ -1,0 +1,7 @@
+* 术语
+PWN: Pwn"是一个黑客语法的俚语词,是指攻破设备或者系统,发音类似"砰".
+CTF: Capture The Flag, 中文一般译作夺旗赛.
+在网络安全领域中指的是网络安全技术人员之间进行技术竞技的一种比赛形式.
+
+* Linux PWN环境配置
+https://mp.weixin.qq.com/s/__dnQEXNCsC0CsGpDbKVDg

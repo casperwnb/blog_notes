@@ -3,7 +3,7 @@
 yum -y install zsh
 
 ** mac
-brew install zsh
+brew install zsh zsh-completions
 
 ** 检查
 安装完成后, 键入zsh --version查看是否安装成功, 成功后会输出信息

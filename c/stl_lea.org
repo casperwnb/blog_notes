@@ -1,0 +1,16 @@
+* vector
+** 基础
+vector是一个模板类, 因此需要使用vector<int> v这样的方式来声明. 位于头文件<vector>中
+
+* set
+头文件: <set>
+set<int> s;
+
+* map
+头文件: <map>
+
+map<string, int> month;
+
+* 栈
+头文件: <stack>
+stack<int> s;

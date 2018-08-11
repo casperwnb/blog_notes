@@ -1,0 +1,123 @@
+* TimSort
+https://hackernoon.com/timsort-the-fastest-sorting-algorithm-youve-never-heard-of-36b28417f399
+
+* 欧几里得算法
+用于求两个数的最大公约数的算法, 最简单的实现是使用辗转相除(减)法.
+#+BEGIN_SRC c
+int gcd(int A, int B) {
+    if (B == 0) {  // 递归调用, 需要注意退出条件
+        return A;
+    }
+    else {
+        while (A >= B) {
+            A -= B;
+        }
+
+        int tmp = A;
+        A = B;
+        B = tmp;
+        return gcd(A, B);
+    }
+}
+#+END_SRC
+
+* 快速排序算法
+#+BEGIN_SRC python  排序思路
+def quicksort(A):
+  if len(A) < 2:
+    return A
+
+  povit = A[0]
+  less = [i for i in A[1:] if i <= povit]  # 比i小的数
+  greater = [i for i in A[1:] if i > povit]  # 比i大的数
+
+  return quicksort(less) +[povit] + quicksort(greater)
+#+END_SRC
+
+#+BEGIN_SRC c 一种C实现  #TODO: 没有理解代码的意思
+void quicksort(int *A, int maxlen, int begin, int end) {
+    int i, j;
+    if(begin < end) {
+        i = begin + 1;
+        j = end;
+        while(i<j) {
+            if(A[i] > A[begin]) {
+                swap(&A[i], &A[j]);
+                --j;
+            } else {
+                ++i;
+            }
+        }
+
+        if(A[i] >= A[begin]) {
+            --i;
+        }
+        swap(&A[begin], &A[i]);
+        quicksort(A, maxlen, begin, i);
+        quicksort(A, maxlen, j, end);
+    }
+}
+#+END_SRC
+
+#+BEGIN_SRC c
+void quicksort(int *A, int start, int end) {
+    if (start < end) {
+        int i=start, j=end, x = A[start];
+
+        while (i < j) {
+            while (i < j && A[j] >= x) {
+                --j;
+            }
+            if(i<j) {
+                A[i++] = A[j];
+            }
+            
+            while(i<j && A[i] <=x )
+                ++i;
+
+            if (i < j)
+                A[j--] = A[i];
+        }
+
+        A[i] = x;
+        quicksort(A, start, i-1);
+        quicksort(A, i+1, end);
+    }
+}
+#+END_SRC
+* 算法解答
+1. 算数问题
+   [[file:algorithmCode/my01.org][算数问题]]
+2. 开灯问题
+   [[file:algorithmCode/my02.org][开灯问题]]
+3. 蛇形填数
+   [[file:algorithmCode/my03.org][蛇形填数]]
+4. 回文词
+   [[file:algorithmCode/my04.org][回文词]]
+5. 猜数字游戏提示
+   [[file:algorithmCode/my05.org][猜数字游戏提示]]
+6. 环状序列
+   [[file:algorithmCode/my06.org][环状序列]]
+
+* 理解了很久的题目
+1. 如果x加上x的各个数字之和得到y，就说x是y的生成元。给出n（1≤n≤100000），求最小生成元。
+   无解输出0。例如：n=216，121，2005时的解分别为198，0，1979
+   #+BEGIN_SRC c
+
+int main() {
+    int a[100005] = {};
+    for(int i=1; i<=100000; ++i) {
+        int m = i, y = i;
+        while(m>0) { y += m % 10; m /= 10; }
+        if(y > 100000) continue;
+        if(a[y] == 0 || a[y] > m) a[y] = m;
+    }
+
+    int n;
+    scanf("%d", &n);
+    printf("%d\n", a[n]);
+}
+   #+END_SRC
+* 算法精解 - C语言描述读书笔记
+
+

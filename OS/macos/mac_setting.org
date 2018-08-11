@@ -1,0 +1,44 @@
+* 工具安装
+** xcode 安装
+1. 打开apple store, 安装xcode
+2. 在命令行执行
+   xcode-select --install
+
+** homebrew
+打开官网, 使用官网上的命令进行安装
+安装命令:
+/usr/bin/ruby -e \
+"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+
+** spectable
+让窗口成比例显示
+
+** cheatsheet
+显示快捷键
+
+** rar
+在网站http://www.rarlab.com/ 下载rar for mac, 然后解压该文件将其执行
+路径添加到PATH环境, 之后就可以用命令解压缩rar文件.
+具体用法: 例如要将 demon.rar解压到demon目录下, mkdir demon && cd demon &&
+rar e demon.rar 即可
+
+** understand
+一个类似于source insight的跨平台的源代码查看工具
+下载地址: 我自己的百度云盘中,
+注册码: A05D2B655CCD(该注册码是使用注册机生成的)
+
+* Mac访问Windows共享文件
+前提条件是需要在同一个局域网中,
+windows将文件共享然后选择一个登陆用户, 并配置用户名密码
+mac打开finder, 点击"前往"->"链接服务器", 在弹出的框中输入: smb://ip即可
+
+* 命令使用
+** locate
+第一次执行该命令时, 会提示先建立一个数据库,
+执行命令: sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.locate.plist
+
+** tr
+在用emacs打开windows下的文件时, 如果有显示"^M", 则可以直接删掉"\r"即可.
+替换Windows下文件中的CRLF:
+tr "\r" "\n" < windows.file > mac.file
+tr -d "\r" < windows.file > mac.file

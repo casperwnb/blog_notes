@@ -28,3 +28,108 @@
 
 * 微信小程序
 [[file:content/wx_xiaochengx_lea.org][微信小程序学习]]
+
+* 微信公众号开发
+** 开始准备
+[[https://mp.weixin.qq.com/wiki?t%3Dresource/res_main&id%3Dmp1472017492_58YV5][微信公众号开发入门指引]]
+
+1. 注册公众号, 准备服务器
+2. 注册好公众号之后, 登录公众号, 选择菜单栏中的"开发"->"基本配置", 在服务器配置中填写服务器地址
+   如: http://ip/wxbind, Token随便填一个, 消息加密密钥使用随机生成一个.
+3. 在服务器上搭建服务, 绑定代码如下:
+   #+BEGIN_SRC python tornado
+class WXServerBind(tornado.web.RequestHandler):
+    def get(self):
+        try:
+            signature = self.get_argument("signature")
+            timestampe = self.get_argument("timestamp")
+            nonce = self.get_argument("nonce")
+            echostr = self.get_argument("echostr")
+            token = "weixin"
+
+            encrypt_lst = [token, timestampe, nonce]
+            encrypt_lst.sort()
+
+            sha1 = hashlib.sha1()
+            map(sha1.update, encrypt_lst)
+            hashcode = sha1.hexdigest()
+
+            if hashcode == signature:
+                self.write(echostr)
+            else:
+                self.write("")
+        except Exception:
+            log.info("trace: {}".format(traceback.format_exc()))
+
+    def post(self):  # post方法中用于处理微信消息
+        pass
+   #+END_SRC
+
+** 创建菜单
+自定义菜单接口可以实现两种类型的按钮,
+click: 用户点击click类型按钮后, 微信服务器会通过消息接口推送消息类型为event的结构给开发者,
+并且带上按钮中开发者填写的key值, 开发者可以通过自定义的key值与用户进行交互.
+
+view: 用户点击view类型按钮后, 微信客户端将会打开开发者在按钮中填写的url值, 可以与网页授权获取
+用户基本信息接口相结合, 获得用户的登入个人信息.
+
+* 公众号错误处理
+** 获取access_token时errcode为-1000
+原因是ip没有添加白名单
+
+** 创建菜单errcode:48001
+原因是没有该接口的权限, 可以申请测试账号
+* 坐标体系
+WGS-84坐标系(World Geodetic System-1984 Coordinate System): 是一种国际上采用的地心坐标系.
+坐标原点为地球质心, 其地心空间直角坐标系的Z轴指向BIH(国际时间服务机构)1984.O定义的协议地球极(
+CTP)方向, X轴指向BIH 1984.O的零子午面和CTP赤道的交点, Y轴与Z轴、X轴垂直构成右手坐标系,
+称1984年世界大地坐标系统, 该坐标系统俗称为地球坐标系, 目前GPS所采用的坐标系统.
+
+GCJ-02: 中国国家测绘局订制的地理信息系统的坐标系统, 是一种对经纬度数据的加密算法, 即加入随机
+的偏差, 国内出版的各种地图系统必须至少采用GCJ-02对地理位置进行首次加密. 该坐标系统俗称为
+"火星坐标系"
+
+百度坐标系统: 百度公司的地图坐标系统, 在国家测绘局的GCJ-02的基础上, 进行了BD-09二次加密.
+百度地图支持将WGS-84坐标和GCJ-02坐标系转换成百度坐标.
+
+* 公众号开发
+SmartWeatherAPI(SWA接口)是中国气象局推出的手机气象服务客户端API.
+* 企业微信开发
+** 企业微信应用开启API接收消息
+1. 自建一个应用
+2. 点击刚创建的应用并进入 -> "接收消息"中的设置API接收 -> 然后填写相关数据
+3. 点击URL提示栏中的"获取帮助"链接, 获取具体的信息
+4. 进入链接后, 滚动页面, 找到"加解密方案说明"链接, 并进入
+5. 找到"使用已有库"的位置, 然后点击"下载地址"链接
+6. 下载对应语言的库
+7. 在填写的url指定的服务器上编写服务验证代码, 代码如下:
+   #+BEGIN_SRC python
+import from WXBizMsgCrypt import WXBizMsgCrypt
+
+class QYWXServerBind(tornado.web.RequestHandler):
+    def get(self):
+        try:
+            sVerifyMsgSig = self.get_argument("msg_signature")
+            sVerifyTimeStamp = self.get_argument("timestamp")
+            sVerifyNonce = self.get_argument("nonce")
+            sVerifyEchoStr = self.get_argument("echostr")
+
+            # 与API设置中的值一致
+            sToken = "ytYlmcfTOmePeychiFBQ7"
+            sEncodingAESKey = "wYWbinMOGJetKFDesXzgqpXm5sMWdp6hMtd3m2CUW1l"
+            sCorpID = "ww0b38f5a099230185"  # 微信企业号ID
+
+            wxcpt = WXBizMsgCrypt(sToken, sEncodingAESKey, sCorpID)
+            ret, hashCode = wxcpt.VerifyURL(sVerifyMsgSig, sVerifyTimeStamp, sVerifyNonce, sVerifyEchoStr)
+
+            log.info("ret={}, hashCode:{}, msgCode:{}, echostr={}".format(
+                ret, hashCode, sVerifyMsgSig, sVerifyEchoStr))
+
+            if ret == 0:
+                self.write(hashCode)
+            else:
+                self.write("")
+        except Exception:
+            log.info("trace: {}".format(traceback.format_exc()))   
+   #+END_SRC
+8. 回到最开始设置API的页面, 点击保存即可, 如果提示"URL验证失败", 可以慢慢调试.

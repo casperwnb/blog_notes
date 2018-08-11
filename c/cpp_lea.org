@@ -1,0 +1,194 @@
+* C++基础
+** 基础特性
+C++能编译大多数C语言程序, C语言中大多数头文件在C++中任然可以使用, 但推荐的做法是在C头文件之前
+加一个小写字母"c", 然后去掉".h"后缀.
+
+C++的数组大小可以使用const定义的变量来初始化.
+C++提供了引用类型.
+C++提供了新的string类型用来表示字符串.
+C++中的函数可以有默认值.
+
+** struct与class
+c++中的struct不但可以有变量还可以有函数, 其使用方法基本等同于class的用法.
+#+BEGIN_SRC c++
+#include <iostream>
+using namespace std;
+struct Point {
+    int x, y;
+    // 使用初始化列表来初始化对象
+    Point(int x=0, int y=0): x(x), y(y) {}
+    // 等价于, this指向当前对象的指针.
+    // Point(int x=0, int y=0) {this->x = x; this->y = y;}
+};
+
+Point operator+(const Point& A, const Point& B) {
+    return Point(A.x+B.x, A.y+B.y);
+}
+
+// 重载输出流操作符
+ostream& operator<<(ostream &out, const Point& p) {
+    out<<"("<<p.x <<","<<p.y<<")";
+    return out;
+}
+int main() {
+    Point p(1, 2);
+    cout<<p<<endl;
+    return 0;
+}
+#+END_SRC
+
+** 模板
+#+BEGIN_SRC c++ 函数模板
+template <typename T>
+T sum(T *start, T *end) {
+    T *p = begin;
+    T ans = 0;
+    for(; p != end; ++p) {
+        ans = ans + *p;
+    }
+    return ans;
+}
+#+END_SRC
+
+#+BEGIN_SRC c++ 类模板
+template <typename T>
+class Point {
+    T x, y;
+    Point(T x=0, T y=0): x(x), y(y) {}
+};
+
+template <typename T>
+Point<T> operator+(const Point<T>& A, const Point<T>& B) {
+    return Point<T>(A.x+B.x, A.y+B.y);
+}
+#+END_SRC
+
+** c++输入输出流
+#+BEGIN_SRC cpp
+#include <iostream>
+#include <algorithm>
+
+using namespace std;
+
+int main() {
+    int a;
+    cin >> a;  // 读取输入数据到a
+    cout << a;  // 输出到控制台
+}
+#+END_SRC
+
+string类在string头文件中, stringstream在sstream头文件中, 示例用法如下:
+#+BEGIN_SRC c++
+#include <iostream>
+#include <string>
+#include <sstream>
+using namespace std;
+
+int main() {
+    string line;
+    while(getline(cin, line)) {
+        int sum = 0, x;
+        stringstream ss(line);
+        while(ss >> x) sum += x;
+        cout << sum <<"\n";
+    }
+    return 0;
+}
+#+END_SRC
+
+* STL
+#+BEGIN_SRC c++ 大整数
+#include <iostream>
+#include <vector>
+#include <string>
+
+using namespace std;
+
+struct BigInteger {
+    // static声明的属于静态成员变量, 所有的类共享该数据
+    static const int BASE = 100000000;
+    static const int WIDTH = 8;
+
+    vector<int> s;
+
+    BigInteger(long long num=0) {*this = num;}
+    BigInteger operator = (long long num) {
+        s.clear();
+        do {
+            s.push_back(num % BASE);
+            num /= BASE;
+        } while(num>0);
+        return *this;
+    }
+
+    BigInteger operator = (const string &str) {
+        s.clear();
+        int x, len = (str.length() - 1)/WIDTH + 1;
+        for(int i=0; i<len; ++i) {
+            int end = str.length() - i * WIDTH;
+            int start = max(0, end-WIDTH);
+            sscanf(str.substr(start, end-start).c_str(), "%d", &x); //wrong?
+            s.push_back(x);
+        }
+        return *this;
+    }
+
+    friend ostream& operator << (ostream &out, const BigInteger& x) {
+        out<<x.s.back();
+        for(int i=x.s.size()-2; i>=0; --i) {
+            char buf[20];
+
+            sprintf(buf, "%08d", x.s[i]);
+            for(int j=0; j<strlen(buf); ++j) cout<<buf[j];
+        }
+        return out;
+    }
+
+    friend istream& operator>>(istream &in, BigInteger& x) {
+        string s;
+        if(!(in>>s)) return in;
+        x = s;
+        return in;
+    }
+
+    BigInteger operator+(const BigInteger& b) const {
+        BigInteger c;
+        c.s.clear();
+        for(int i=0, g = 0; ; ++i) {
+            if(g==0 && i >= s.size() && i >= b.s.size()) break;
+            int x = g;
+            if(i < s.size()) x += s[i];
+            if(i < b.s.size()) x += b.s[i];
+            c.s.push_back(x % BASE);
+            g = x / BASE;
+        }
+        return c;
+    }
+
+    BigInteger operator+=(const BigInteger& b) {
+        *this = *this + b;
+        return *this;
+    }
+
+    bool operator<(const BigInteger& b) const {
+        if (s.size() != b.s.size())
+            return s.size() - b.s.size();
+
+        for(int i=0; i<s.size(); ++i) {
+            if(s[i] != b.s[i])
+                return s[i] - b.s[i];
+        }
+        return false;  // 不小于
+    }
+};
+
+int main() {
+    BigInteger x, y;
+    cin >> x;
+    cout << x << endl;
+
+    y = x + x;
+    cout<<y<<endl;
+    return 0;
+}
+#+END_SRC

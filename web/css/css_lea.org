@@ -1,3 +1,162 @@
+* css编译环境搭建
+** less
+1. 安装npm
+2. npm install -g less
+3. 编译less文件为css
+   lessc filename.less > filename.css  # 需要重定向到某个文件
+
+* css基础
+** 元素类型
+HTML元素可以分为两种: 块级元素和内联元素(也叫做行内元素).
+区别是:
+1. 块级元素会独占一行(即无法与其他元素显示在同一行内, 除非你显式修改元素的 display 属性),
+   而内联元素则都会在一行内显示.
+2. 块级元素可以设置 width、height 属性, 而内联元素设置无效
+3. 块级元素的 width 默认为 100%, 而内联元素则是根据其自身的内容或子元素来决定其宽度
+   要想让内联函数也可以改变宽高可以通过设置display:block来达到效果, 如果既想让元素在行内显示
+   又能设置宽高, 可以设置 display:inline-block
+
+HTML代码是顺序执行的, 一份无任何css样式的html代码最终呈现出的页面时根据元素出现的顺序和类型
+排列的. 块级元素就从上到下排列, 遇到内联元素则从左到右排列. 这种情况下, 元素的分布叫做普通流.
+
+** 盒模型
+[[file:~/Learn_space/blog_notes/web/images/cssbox_model.png][css盒模型示意图]]
+
+盒模型由4部分组成, 从内到外分别是content -> padding -> border -> margin
+
+按理说一个元素的宽度(高度类似)的计算如下:
+总宽度 = margin-left + border-left + padding-left + width + \
+         padding-right + border-right + margin-right
+例如:
+#+BEGIN_SRC css
+.example {
+  width: 200px;
+  padding: 10px;
+  border: 5px solid #000;
+  margin: 20px;
+}
+#+END_SRC
+元素的总宽度是: width(200px) + padding(10px*2) + border(5px*2) + margin(20px*2) = 270px
+IE9以下的宽度是: width(200px) + margin(20px*2) = 240px
+
+W3C最后为了解决这个问题, 在CSS3中加了box-sizing属性, 当设置box-sizing: border-box时, border
+和padding就被包含在宽高之内和IE的标准就是一样的.
+因此为了兼容性, 最好加上:
+#+BEGIN_SRC css
+*, *:before, *:after {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+#+END_SRC
+
+两种特殊情况: 绝对定位和浮动定位, 他们在页面上的表现均不占空间, 脱离了普通文档流, 感觉像是浮在
+其他元素之上的.
+
+*** 无宽度 - 绝对定位(position: absolute;)元素
+position的取值决定了元素将如何定位, 其取值如下:
+| static   | 默认值, 元素将定位到它的正常位置,相当于没有定位,元素在页面上占据位置            |
+|          | 不能使用top, right, bottom, left移动元素位置                                    |
+| relative | 相对定位, 相对于元素的正常位置进行进行定位, 可以使用top等                       |
+| absolute | 绝对定位, 相对于最近一级的定位不是static的父元素进行定位,元素在页面上不占据位置 |
+| fixed    | 绝对定位, 相对于浏览窗口进行定位, 其余同absolute                                |
+| inherit  | 从父元素继承position属性的值                                                    |
+
+#+BEGIN_SRC css 实例代码
+/*相对定位*/
+.pos_left {
+  position: relative;
+  left: -20px;
+  top: -20px;
+}
+/*绝对定位*/
+.pos_left_absolute {
+  position: absolute;
+  right: 100px;
+  top: 100px;
+  height: 100px;
+}
+
+/*固定定位*/
+.pos_left_fixed {
+  position: fixed;
+  left: 10px;
+}
+
+/*z-index*/
+.pos_x {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  z-index: -1; /*z-index设置为-1时表示拥有更低的优先级*/
+  width: 100px;
+  height: auto;
+}
+#+END_SRC
+当一个元素的position值为absolute, fixed时, 会发生3件事情:
+1. 把该元素往z轴方向移动了一层, 元素脱离了文档流, 不再占据原来那层的空间, 还会覆盖下层的元素.
+   此时可以通过设置z-index来设置上下位置.
+2. 该元素将变成块级元素, 此时可以设置其高度和宽度
+3. 如果该元素是块级元素, 元素的宽度由原来的width:100%变为auto.
+
+*** 无宽度- 浮动(float)元素
+浮动出现的意义其实只是用来让文字环绕图片而已.
+文字之所以会环绕含有float属性的图片是因为浮动破坏了正常的line boxes;
+
+假如某个div元素A是浮动的, 如果A元素上一个元素也是浮动的, 那么A元素会跟随在上一个元素的后边
+(如果一行放不下这两个元素,那么A元素会被挤到下一行); 如果A元素上一个元素是标准流中的元素,
+那么A的相对垂直位置不会改变, 也就是说A的顶部总是和上一个元素的底部对齐.
+
+float的取值有: left, right, none, inherit
+元素浮动前是在标准流中, 是竖向排列的, 浮动之后可以理解为横向排列.
+
+清除浮动可以理解为打破横向排列. 其关键字是clear.
+语法是: clear: none|left|right|both
+none: 默认值, 允许两边都可以有浮动对象
+left: 不允许左边有浮动对象
+right: 不允许右边有浮动对象
+both: 不允许两边有浮动对象
+
+注意: 对于CSS的清除浮动(clear), 这个规则只能影响使用清除的元素本身, 不能影响其他元素.
+
+**** line boxes
+<p>这是一行普通的文字，这里有个 <em>em</em> 标签。</p>
+这段里包含了4种boxes,
+1. <p>标签所在的是containing box, 此box包含了其他的boxes
+2. 然后是inline boxes
+   inline boxes不会让内容成块显示, 而是排成一行, 如果外部含inline属性的标签(<span>, <a>等)
+   则属于inline boxes. 如图: [[file:~/Learn_space/blog_notes/web/images/css_inlinebox.png][css inline boxes示例图]]
+3. line boxex
+   在container boxes里, 一个一个的inline boxes组成了line boxes. 如图: [[file:~/Learn_space/blog_notes/web/images/css_linebox.png][css line boxes示例图]]
+4. content area
+   content area 是一种围绕文字看不见的box. content area的大小与font-size大小相关.
+   如图: [[file:~/Learn_space/blog_notes/web/images/css_content_area.png][content area 示例图]]
+
+line boxes的高度是由其内部最高的inline boxes的高度决定的.
+当给img添加float属性后, img的inline boxes特性就被破坏了, 因此就无法与inline boxes的文字排在
+一行了, 会从inline-boxes上脱离出来, 跟随自身的方位属性, 靠边排列.
+
+在目前的css的世界中, 所有的高度都是有两个css模型产生:
+一个是box模型, 对应css为height+padding+margin, 一个是line box, 对应的样式为"line-height"
+前者的height属性分为明显的height值和隐藏的height值, 所谓隐藏的height值是指图片的高度, 一旦载入
+一张图片, 其内在的height值就会起作用.
+
+对于line box而言, 没有inline boxes, 就没有高度了.
+
+[[http://www.iyunlu.com/view/css-xhtml/55.html][浮动的清除]]
+
+* css 简写
+** 色彩缩写
+color: #113366 => color: #136
+
+** margin, padding值的缩写
+缩写的顺序是: 上->右->下->左, 从上开始顺时针方向.
+以margin为例:
+margin:1px;  //四个方向的边距相同, 等同于margin:1px 1px 1px 1px;
+margin:1px 2px;  //上下边距都为1px, 左右边距均为2px, 等同于margin:1px 2px 1px 2px
+margin:1px 2px 3px;  //右边距和左边距相同, 等同于margin:1px 2px 3px 2px;
+margin:1px 2px 1px 3px;  //注意, 这里虽然上下边距都为1px, 但是这里不能缩写.
+
 * css3的混合模式 - mix-blend-mode
 主要适用于当文本跨域一个与自身颜色相似的区域时, 实现颜色的翻转.
 ** 实例代码

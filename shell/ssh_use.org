@@ -24,7 +24,7 @@ ssh-keygen -t rsa -C "xxx" -f sshkey_filename
    以上两步可以使用ssh-copyid来完成:
    ssh-copyid -i xx name@ip
 
-* 本地SSH配置-多ssh key管理
+* 本地SSH配置多ssh key管理
 ** 参考资料
 [[https://www.barretlee.com/blog/2016/03/09/config-in-ssh-after-troubling-git-connection/][多SSH Key管理技巧与Git多账户登录问题]]
 

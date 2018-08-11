@@ -1,4 +1,4 @@
-* Python中的排序
+* Python小技巧
 ** python2中sort中的cmp参数
 如果希望元素能按照特定的方式进行排序, 可以通过compare(x, y)的形式自定义比较函数.
 其中的规律就是: 两两比较, 如果第一个参数小于第二个参数返回一个负数, 相等返回0, 如果第一个参数大于
@@ -38,10 +38,75 @@ data = "X * Y"
 ret = eval(data)  # ret = 2
 ast.literal_eval(data)  # 抛出异常
 
+env = {"X": 2, "Y": 3}
+ret = eval(data, env)
+
 data = "[1, 2, 3]"
 ret = eval(data)
 ret = ast.literal_eval(data)  # ret = [1, 2, 3]
 #+END_SRC
+
+** 将字典中的各个键对应的值做笛卡尔乘积
+#+BEGIN_SRC python
+import itertools
+
+data = {"age": [1, 2, 3, 4], "gender": ["f", "m"], 
+        "color": ["red", "blue", "yellow", "pink"],
+        "salary": [10000, 20000]}
+
+keys = data.keys()
+dataLst = []
+for key in keys:
+    dataLst.append(data[key])
+
+handleData = []
+for d in itertools.product(*dataLst):
+    handleData.append(dict(zip(keys, d)))
+#+END_SRC
+
+** json序列化
+#+BEGIN_SRC python
+import json
+class ComplexEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.strftime('%Y-%m-%d %H:%M:%S')
+        elif isinstance(obj, date):
+            return obj.strftime('%Y-%m-%d')
+        elif isinstance(obj, set):
+            return list(obj)
+        elif isinstance(obj, Decimal):
+            return float(obj)
+        else:
+            return json.JSONEncoder.default(self, obj)
+#+END_SRC
+
+** 字典递归定义
+#+BEGIN_SRC python
+from collections import defaultdict
+def tree():
+    return defaultdict(tree)
+#+END_SRC
+
+** 生成二维码图片并显示在网页上
+1. python服务端代码
+   #+BEGIN_SRC python
+import StringIO
+
+# 此类对应的url为: /genqrcode
+class CasperQRCode(tornado.web.RequestHandler):
+    def get(self):
+        self.set_header("Content-Type","image/png")
+        img = qrcode.make("http://www.baidu.com")
+        sIO = StringIO.StringIO()
+        img.save(sIO)  # 将数据写入内存中
+        self.write(sIO.getvalue())
+   #+END_SRC
+2. html页面
+   #+BEGIN_SRC html
+<img src="host:/genqrcode" />
+   #+END_SRC
+
 * Python测试
 [[file:contents/python_test.org][Python测试]]
 
@@ -63,3 +128,5 @@ python实现的tail -f工具
 
 * Python数据处理
 [[file:contents/python_data_gen.org][Python数据处理]]
+* Tornado
+[[file:contents/tornado_lea.org][Tornado学习]]

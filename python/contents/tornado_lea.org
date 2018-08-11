@@ -1,0 +1,85 @@
+* Tornado异步问题 - 如何解决
+#+BEGIN_SRC python 问题代码如下
+from concurrent.futures import ThreadPoolExecutor
+import tornado
+
+class NoBlockHandler(tornado.web.RequestHandler):
+    executor = ThreadPoolExecutor(10)
+
+class MainHandler(NoBlockHandler):
+    @run_on_executor
+    def get(self):
+        self.render("echart.html")
+
+
+class EchartData(NoBlockHandler):
+    @run_on_executor
+    def post(self):
+        self.write({"data": [1, 2, 3], "category":["age", "work", "input"]})
+
+#+END_SRC
+
+#+BEGIN_SRC html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+</head>
+<body>
+    <!-- 为 ECharts 准备一个具备大小（宽高）的 DOM -->
+    <div id="asyncmain" style="width: 600px;height:400px;"></div>
+    <script src="{{static_url('js/jquery-3.3.1.min.js')}}"></script>
+    <!-- 引入 ECharts 文件 -->
+    <script src="{{static_url('js/echarts.js')}}"></script>
+    <script type="text/javascript">
+
+
+
+        // 基于准备好的dom，初始化echarts实例
+        var myAsyncChart = echarts.init(document.getElementById("asyncmain"));
+
+        // 指定图表的配置项和数据
+        myAsyncChart.setOption({
+            title: {
+                text: '异步数据加载示例'
+            },
+            tooltip: {},
+            legend: {
+                data:['销量']
+            },
+            xAxis: {
+                data: []
+            },
+            yAxis: {},
+            series: [{
+                name: '销量',
+                type: 'bar',
+                data: []
+            }]
+        });
+
+        // 使用刚指定的配置项和数据显示图表。
+        $.post("/rest/echartdata").done(function (data) {
+            console.log(data);
+            // 填入数据
+            myAsyncChart.setOption({
+                xAxis: {
+                    data: data.xaxiscategory
+                },
+                series: [{
+                    // 根据名字对应到相应的系列
+                    name: '销量',
+                    data: data.data
+                }]
+            });
+        });
+    </script>
+</body>
+</html>
+#+END_SRC
+第一次请求时可以加载出数据, 第二次就无数据加载出来, 查看请求状态, 请求/rest/echartdata为pendding
+状态.
+
+如果将MainHandler中的run_on_executor装饰器去掉, 则可以加载出数据, 添加该装饰器后, 就没有数据
+加载出来, 这是为什么呢?
+

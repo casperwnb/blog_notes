@@ -1,0 +1,52 @@
+* description
+输入一个字符串, 判断它是否为回文串以及镜像串. 输入字符串保证不含数字0. 所谓回文串,
+就是反转以后和原串相同, 如abba和madam. 所有镜像串, 就是左右镜像之后和原串相同,如2S和3AIAE.
+注意, 并不是每个字符在镜像之后都能得到一个合法字符.
+在本题中镜像文字有A->A, M->M, Y-Y, Z->5, o->o(欧,不是零),1->1, 2->S,E->3,3->E,S->2,5->Z,H->H,
+T->T,I->I,U->U,J->L,V-V,8->8,W->W,L->J,X->X
+输入的每行包含一个字符串(保证只有上述字符, 不含空白字符), 判断它是否为回文串和镜像串(共4种组合).
+每组数据之后输出一个空行.
+样例输入:
+NOTAPALINDROME
+ISAPALINILAPASI
+2A3MEAS
+ATOYOTA
+样例输出:
+NOTAPALINDROME -- is not a palindrome.
+ISAPALINILAPASI -- is a regular palindrome.
+2A3MEAS -- is a mirrored string.
+ATOYOTA -- is a mirrored palindrome.
+
+* Code
+#+BEGIN_SRC c
+#include <stdio.h>
+#include<string.h>
+#include<ctype.h>
+//                 ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789
+const char* rev = "A   3  HIL JM O   2TUVWXY51SE Z  8 ";  // 镜像字符串, 没有镜像的字符串使用空格
+const char* msg[] = {
+  "not a palindrome", "a regular palindrome",
+  "a mirrored string", "a mirrored palindrome"
+};
+
+char r(char ch) {
+  if(isalpha(ch))
+    return rev[ch - 'A'];  // 如果是字符, 减去A获得下标值
+  return rev[ch - '0' + 25];  // 如果是数字, 减去'0'之后+25获得下标值
+}
+
+int main() {
+  char s[30];
+  while(scanf("%s", s) == 1) {
+    int len = strlen(s);
+    int p = 1, m = 1;
+    for(int i = 0; i < (len+1)/2; i++) {
+      if(s[i] != s[len-1-i]) p = 0; //不是回文串
+      if(r(s[i]) != s[len-1-i]) m = 0; //不是镜像串
+    }
+    // 消息安排, #TODO
+    printf("%s -- is %s.\n\n", s, msg[m*2+p]);
+  }
+  return 0;
+}
+#+END_SRC

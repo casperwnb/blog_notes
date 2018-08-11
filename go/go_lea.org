@@ -1,1 +1,21 @@
 * golang错题集
+* GO学习笔记
+** GOPATH
+GOPATH的值可以是一个目录的路径, 也可以包含多个目录路径. 每个目录都代表go语言的一个工作区.
+这些工作区用于放置go语言的源码文件, 以及安装后的归档文件和可执行文件.
+
+** go build
+go build -a  # 强制编译
+go build -x  # 查看go build命令具体都执行了哪些操作
+go build -n  # 只查看具体执行的操作, 而真的不执行
+go build -v  # 查看go build命令编译的代码包名称
+
+** 代码包
+[[https://github.com/hyper0x/go_command_tutorial/blob/master/0.3.md][web参考链接]]
+
+对代码包的远程导入路径进行自定义的方法是: 在该代码包中的库源码文件的包声明语句的右边加入导入注释
+如:
+#+BEGIN_SRC go
+package semaphore // import "golang.org/x/sync/semaphore"
+#+END_SRC
+

@@ -1,0 +1,114 @@
+* ftp命令
+在终端中输入ftp, 此时命令行进入ftp提示符, 输入open <ip_addr>, 然后根据提示输入用户名/密码
+即可登录上ftp.
+
+** ftp的操作命令
+ls: 列出文件, cd: 切换目录, mkdir: 创建目录
+lcd: 改变本地机器的目录, get <filename>:下载文件,如果不指定下载目录,会下载到登录ftp时的本地目录
+mget *.xls: 下载多个xls文件格式文件.
+put <filename>: 上传文件, 可以使用绝对路径  mputs *.xls: 上传多个xls格式文件
+
+可以使用help命令查看帮助信息
+
+ftp [hostname | ip-addr],  get [remote-file] [local-file]
+
+* curl使用
+http://www.ruanyifeng.com/blog/2011/09/curl.html
+https://curl.haxx.se/docs/httpscripting.html
+
+curl web-url: 将内容输出到stdout, 如果发现乱码使用 iconv进行转码
+curl web-url | iconv -fgb2312
+curl -x proxy_ip(111.95.243.36:80) url: 使用代理ip抓取数据
+curl --socks4 ip:port url, 使用socks4代理抓取页面
+curl --socks5 ip:port url,
+
+curl -o fname url: 将内容保存到fname中
+curl -L url: 自动跳转
+curl -i url: 显示http response的头信息,以及网页内容
+curl -I url: 只显示http response的头信息
+curl -v url: `-v`参数可以显示一次http通信的整个过程,包括端口连接和http request头信息
+curl --trace outputfilename url: 可以查看更详细的通信过程
+curl --trace-ascii outputfilename url: 可以查看更详细的通信过程
+
+** 发送表单信息
+发送表单信息有GET和POST两种方法,GET方法相对简单,只要把数据附在网址后面就行.
+curl example.com/form.cgi?data=xxx
+
+POST方法必须把数据和网址分开,curl就要用到--data参数
+curl -X POST --data "data=xxx" example.com/form.cgi
+
+如果数据没有经过表单编码,还可以让curl为你编码,参数是`--data-urlencode`
+curl -X POST--data-urlencode "date=April 1" example.com/form.cgi
+
+curl默认的HTTP动词是GET,使用`-X`参数可以支持其他动词.
+curl -X POST www.example.com
+curl -X DELETE www.example.com
+
+文件上传:
+假定文件上传的表单是:
+<form method="POST" enctype='multipart/form-data' action="upload.cgi">
+  <input type=file name=upload>
+　<input type=submit name=press value="OK">
+</form>
+
+curl --form upload=@localfilename --form press=OK [URL]
+
+以表单方式上传文件:
+curl -F file=@/tmp/me.txt url
+
+** referer字段
+有时需要在http request头信息中,提供一个referer字段,表示你是从哪里跳转过来的,
+curl --referer http://www.example.com http://www.example.com
+
+** user-agent
+这个字段是用来表示客户端的设备信息,服务器有时会根据这个字段,针对不同设备,返回不同格式的网页.
+curl --user-agent "[User Agent]" [URL]
+
+cookie:
+使用`--cookie`参数，可以让curl发送cookie
+curl --cookie "name=xxx" www.example.com
+至于具体的cookie的值，可以从http response头信息的`Set-Cookie`字段中得到
+`-c cookie-file`可以保存服务器返回的cookie到文件,`-b cookie-file`可以使用这个文件作为cookie信息,
+进行后续的请求
+
+在http request之中,自行增加一个头信息.`--header`参数就可以起到这个作用.
+curl --header "Content-Type:application/json" http://example.com <==>
+curl -H 'domain:value' url
+如果需要增加多个头信息, 则使用
+curl -H 'd1:v1' -H 'd2:v2' url
+
+有些网域需要HTTP认证，这时curl需要用到`--user`参数
+curl --user name:password example.com
+
+
+
+* ICONV
+ICONV用于转换文件编码, 例如: 在Mac下将windows的GBK编码文件转为UTF-8编码文件.
+iconv -f GBK -t UTF-8 <input.txt >output.txt
+
+iconv -l  # 查看支持的编码格式
+
+注意: 在mac下使用file查看windows GBK编码的文件时会显示ISO-8859 text, 此时可以尝试使用GBK,
+GB18030, GB2312等来试着解码文件内容.
+
+* TR
+可用于清理文件中的内容, 最常用的就是在mac下清除windows文件中多余的"\r"符号.
+
+在使用tr时, 还可以使用[:class:]变量, 支持的有:
+[:alnum:] 所有字母和数字
+[:alpha:] 所有字母
+[:blank:] 所有水平空白
+[:cntrl:] 所有控制字符
+[:digit:] 所有数字
+[:graph:] 所有可打印的字符，不包括空格
+[:lower:] 全部小写字母
+[:print:] 所有可打印的字符，包括空格
+[:punct:] 所有标点符号
+[:space:] 所有的水平或垂直空格
+[:upper:] 全部大写字母
+[:xdigit:] 所有十六进制数字
+
+tr -d  # 删除字符
+
+tr -s  # 压缩字符, 将多个连续重复出现的字符变为一个字符
+

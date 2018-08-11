@@ -1,0 +1,33 @@
+* Description
+用1,2,3, ..., 9组成3个三位数abc, def和ghi, 每个数字恰好使用一次, 要求abc:def:ghi=1:2:3.
+按照"abc def ghi"的格式输出所有解, 每行一个解.
+
+* Code
+#+BEGIN_SRC c
+for(int abc=100; abc<=333; ++abc) {
+        int a[10] = {};
+        int def = 2 * abc;
+        int ghi = 3 * abc;
+
+        a[abc/100] = 1; // a
+        a[abc/10%10] = 1; // b
+        a[abc%10] = 1; // c
+
+        a[def/100] = 1; // d
+        a[def/10%10] = 1; // e
+        a[def%10] = 1; // f
+
+        a[ghi/100] = 1; // g
+        a[ghi/10%10] = 1; // h
+        a[ghi%10] = 1; // i
+
+        int sum = 0;
+        for(int i=1; i<10; ++i) {
+            sum += a[i];
+        }
+
+        if(sum == 9) {
+            printf("%d %d %d\n", abc, def, ghi);
+        }
+    }
+#+END_SRC

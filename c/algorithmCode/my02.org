@@ -1,0 +1,49 @@
+* Desription
+有n盏灯, 编号为1～n. 第1个人把所有灯打开, 第2个人按下所有编号为2的倍数的开关(这些灯将被关掉),
+第3个人按下所有编号为3的倍数的开关(其中关掉的灯将被打开, 开着的灯将被关闭), 依此类推.
+一共有k个人, 问最后有哪些灯开着? 输入n和k, 输出开着的灯的编号.
+
+* Code
+#+BEGIN_SRC c
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+int main() {
+  int n, k;
+  scanf("%d %d", &n, &k);
+  int *a = (int*)malloc(sizeof(int) * n);
+  memset(a, 0, sizeof(int)*n);
+
+  // 方法1:
+  for(int i=1; i<=k; ++i) {
+    for(int j=1; j<=n; ++j) {
+      if(i*j<=n) {
+        a[i*j-1] = !a[i*j-1];
+      }
+    }
+  }
+
+  for(int i=0; i<n; ++i) {
+    if(a[i])
+      printf("%d ", i+1);
+  }
+  printf("\n");
+  
+  // 方法2: 会多占用一个int, 第一个不会用到
+  int *b = (int*)malloc(sizeof(int)*(n+1));
+  memset(b, 0, sizeof(int) * (n+1));
+  for(int i=1; i<=k; ++i) {
+    for(int j=1; j<=n; ++j)
+      if(j % i == 0)
+        b[j] = !b[j];
+  }
+
+  for(int i=1; i<=n; ++i)
+    if(b[i])
+      printf("%d ", i);
+  printf("\n");
+  return 0;
+}
+#+END_SRC
+当灯的个数少于人数时, 会发现亮着的等是平方数.

@@ -1,0 +1,85 @@
+* Description
+在n×n方阵里填入1, 2, ..., n×n, 要求填成蛇形.
+例如, 当n=5时, 输出结果为:
+13 14 15 16  1
+12 23 24 17  2
+11 22 25 18  3
+10 21 20 19  4
+ 9  8  7  6  5
+
+* Code
+#+BEGIN_SRC c 
+/* 思路:
+从1开始依次填写, 设"笔"的坐标为(x,y), 则一开始x=0, y=n-1, 即第0行,第n-1列(行列的范围是0～n-1
+没有第n列), "笔"的移动轨迹是: 下、下、下、左、左、左、上、上、上、右、右、下、下、左、上.
+总之先是下, 到不能填为止, 然后是左, 接着是上, 最后是右. "不能填"是指再走就出界(例如4→5),
+或者再走就要走到以前填过的格子(例如12→13), 如果把所有格子初始化为0, 就能很方便地加以判断.
+*/
+// 方法1
+#include <stdio.h>
+#include <string.h>  //memset
+
+int a[10][10];  // 预申明
+int main() {
+  int n, total=0, x, y;
+  scanf("%d", &n);
+
+  memset(a, 0, sizeof(int)*n); // => memset(a, 0, sizeof(a));
+ 
+  total = a[x=0][y=n-1] = 1;
+  while(total < n * n) {
+    while(x+1<n && !a[x+1][y]) a[++x][y] = ++total;
+    while(y-1>=0 && !a[x][y-1]) a[x][--y] = ++total;
+    while(x-1>=0 && !a[x-1][y]) a[--x][y] = ++total;
+    while(y+1<n && !a[x][y+1]) a[x][++y] = ++total;
+  }
+
+  for(x = 0; x < n; x++) {
+    for(y = 0; y < n; y++)
+      printf("%3d", a[x][y]);
+    printf("\n");
+  }
+  return 0;
+}
+
+// 方法2
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+int main() {
+    int n;
+    scanf("%d", &n);
+
+    int total=0, x=0, y=n-1;
+    // 声明内存
+    int **matrix = (int**)malloc(sizeof(int*)*n);
+    for(int i=0; i<n; ++i) {
+        matrix[i] = (int*)malloc(sizeof(int) * n);
+        memset(matrix[i], 0, sizeof(int)*n); // init = 0
+    }
+
+    matrix[x][y] = ++total;
+    while(total < n*n) {
+        while(x+1<n && matrix[x+1][y]==0) matrix[++x][y] = ++total;
+        while(y-1>=0 && matrix[x][y-1]==0) matrix[x][--y] = ++total;
+        while(x-1>=0 && matrix[x-1][y]==0) matrix[--x][y] = ++total;
+        while(y+1<n && matrix[x][y+1]==0) matrix[x][++y] = ++total;
+    }
+
+    for(int i=0; i<n; ++i) {
+        for(int j=0; j<n; ++j) {
+            printf("%4d ", matrix[i][j]);
+        }
+        printf("\n");
+    }
+
+    // free memory
+    for(int i=0; i<n; ++i) {
+        free(matrix[i]);
+    }
+    free(matrix);
+
+    return 0;
+}
+#+END_SRC

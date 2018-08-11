@@ -1,0 +1,12 @@
+* 给定一个数计算其二进制最高位为1时的值 - 无符号数
+#+BEGIN_SRC c
+unsigned int highestOneBit(unsigned int i, unsigned int *high) {
+    i |= (i >> 1); // |= 等价于 i = i | (i >> 1);
+    i |= (i >> 2);
+    i |= (i >> 4);
+    i |= (i >> 8);
+    i |= (i >> 16);
+    *high = i; // 所有位全为1, 即i用二进制表示后的所有位为1的值.
+    return i - (i >> 1); // 获取最高位为1其他位为0时的值
+}
+#+END_SRC

@@ -1,0 +1,31 @@
+* 设置
+** 各配置文件的作用
+/etc/gitconfig: 包含系统上每个用户及他们仓库的通用配置.
+~/.gitconfig, ~/.config/git/config: 只针对当前用户
+厂库目录.git/config: 只针对该厂库
+
+** 设置
+git config alias.st status  # 设置status的别名为st
+
+** .gitignore文件
+所有以#开头的行会被忽略, 被当做注释
+可以使用标准的glob模式匹配
+匹配模式可以以(/)开头防止递归
+匹配模式可以以(/)结尾指定目录
+忽略指定模式以外的文件或目录, 可以在模式前加上(!)
+
+glob模式是指shell所使用的简化了的正则表达式.
+*: 匹配0或多个任意字符
+[abc]: 只匹配括号内的任意一个字符
+[0-9]: 使用短线表示范围
+?: 匹配任意一个字符
+**: 匹配任意的中间目录, a/**/z可以匹配: a/z, a/b/z, a/b/c/z等
+
+#+BEGIN_SRC text ignore文件配置示例
+*.c # 忽略所有的以.c结尾的文件
+!stream.c  # 但stream.c会被git追踪
+/TODO: #只忽略当前文件夹下的TODO文件, 不包括其他文件夹下的TODO例如: subdir/TODO
+build/: #忽略所有在build文件夹下的文件
+doc/*.txt: #忽略 doc/notes.txt, 但不包括多层下.txt例如: doc/server/arch.txt
+doc/**/*.pdf: #忽略所有在doc目录下的.pdf文件
+#+END_SRC

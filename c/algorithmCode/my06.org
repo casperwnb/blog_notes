@@ -1,0 +1,35 @@
+* Description - 环状序列
+长度为n的环状串有n种表示法, 分别为从某个位置开始顺时针得到.
+输入一个长度为n(n≤100)的环状DNA串(只包含A、C、G、T这4种字符)的一种表示法,
+你的任务是输出该环状串的最小表示. 例如, CTCC的最小表示是CCCT, CGAGTCAGCT的最小表示为AGCTCGAGTC
+
+* Code
+#+BEGIN_SRC c
+#include <stdio.h>
+#include <string.h>
+
+#define maxn 105
+
+int less(const char *s, int p, int q) {
+  int n = strlen(s);
+  for(int i=0; i<n; ++i)
+    if(s[(p+i)%n] != s[(q+i)%n])
+      return s[(p+i)%n] < s[(q+i)%n];
+  return 0;
+}
+
+int main() {
+  char s[maxn];
+
+  scanf("%s", s);
+  int ans = 0;
+  int n = strlen(s);
+  for(int i=0; i<n; ++i) {
+    if(less(s, i, ans)) ans = i;
+  }
+  for(int i=0; i<n; ++i)
+    putchar(s[(i+ans)%n]);
+  putchar('\n');
+  return 0;
+}
+#+END_SRC
