@@ -1,0 +1,106 @@
+* flag包
+** 介绍
+用于接收和解析命令参数.
+
+** 使用
+#+BEGIN_SRC go
+func HandleCmd() {
+    var name string
+    // 第一个参数用于存储该命令参数的值的地址, 此处就是name的地址了
+    // 第二个参数是指定了该命令参数的名称
+    // 第三个参数指定了未追加该命令参数时的默认值
+    // 第四个参数,该命令参数的简短说明
+    // 还有与该函数类似的函数: flag.String, 该函数会直接返回一个已经分配好的用于存储命令参数值的
+    // 地址, 使用方法是: var name = flag.String("name", "defaultName", "Help Msg")
+    // fmt.Println(*name) // 使用*name来访问值
+    flag.StringVar(&name, "name", "defaultName", "Help Message")
+    // 解析命令行参数, 并把它们的值赋给相应的变量. 对该函数的调用必须在所有命令参数存储载体的声明
+    // (此处是对变量name的声明)和设置(这里是flag.StringVar函数的调用)之后, 并且在读取任何命令参数
+    // 值之前进行.
+    flag.Parse()
+    fmt.Println(name)  // 输出解析的值
+}
+
+// 运行: go run xxx.go -name casper
+// 或者: go run xxx.go --name casper
+// go run xxx.go --help  # 查看帮助信息
+#+END_SRC
+
+** 定义命令源码文件的参数使用说明
+有很多方式, 最简单的一种方式就是对变量flag.Usage重新赋值. flag.Usage的类型是func(), 是一种无参数
+且无结果声明的函数类型.
+
+flag.Usage变量在声明时就已经被赋值了, 所以才能够在运行命令go run xx.go --help时看到正确的结果
+
+对flag.Usage的赋值必须在调用flag.Parse函数之前.
+
+#+BEGIN_SRC go 修改flag.Usage
+flag.Usage = func() {
+    fmt.Fprintf(os.Stderr, "Usage of %s:\n", "question")
+    flag.PrintDefaults()
+}
+flag.Parse()
+#+END_SRC
+
+** 深入
+在调用flag包中的一些函数的时候, 实际上是在调用flag.CommandLine变量的对应方法.
+flag.CommandLine相当于默认情况下的命令参数容器, 所以通过对flag.CommandLine重新赋值, 可以更深
+层次地制定当前命令源码文件的参数使用说明.
+
+#+BEGIN_SRC go
+func init() {
+    // 第二个参数的类型是: falg.NewFlagSet, 其取值有flag.PanicOnError, flag.ExitOnError
+    // 这些值都预先定义在flag包中, 
+    flag.CommandLine = flag.NewFlagSet("", flag.ExitOnError)
+    flag.CommandLine.Usage = func() {
+        fmt.Fprintf(os.Stderr, "Usage Of %s:\n", "Question")
+        flag.PrintDefaults()
+    }
+}
+#+END_SRC
+
+不用全局的flag.CommandLine变量, 而是创建一个私有的命令参数容器. 这样可以定制自己的参数处理方法
+#+BEGIN_SRC go
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+var cmdLine = flag.NewFlagSet("question", flag.ExitOnError)
+
+func main() {
+	var name string
+	cmdLine.StringVar(&name, "name", "casper", "greeting name")
+
+	cmdLine.Parse(os.Args[1:])
+	fmt.Println(name)
+}
+#+END_SRC
+
+flag.Args()会存放无法解析的参数.
+#+BEGIN_SRC go
+for _, v := range flag.Args() {
+}
+#+END_SRC
+
+读取自定义的数据
+#+BEGIN_SRC go
+type Student struct {
+	name string
+	sex  string
+}
+
+func (s *Student) Set(value string) error {
+	valueLst := strings.Split(value, " ")
+	s.name = valueLst[0]
+	s.sex = valueLst[1]
+
+	return nil
+}
+
+var s Student
+
+flag.Var(&s, "student", "Help Msg")
+#+END_SRC

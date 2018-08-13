@@ -119,5 +119,30 @@ int main() {
 }
    #+END_SRC
 * 算法精解 - C语言描述读书笔记
+* 排序算法
+** 桶排序
+最简单的桶排序
+#+BEGIN_SRC c  排序0~10之间输入的数
+int main() {
+    int bucket[] = {0};
+    for(int i=0; i<10; ++i) {
+        bucket[i] = 0; // 初始化每个数字出现的次数为0
+    }
 
+    int n, count=9;
+    while(count--) {
+        scanf("%d", &n);
+        bucket[n] += 1;
+    }
+
+    for(int i=0; i<10; ++i) {
+        for(int j=1; j<=bucket[i]; ++j)  printf("%d ", i);
+        printf("\n");
+    }
+    return 0;
+}
+#+END_SRC
+
+** 冒泡排序
+基本思想: 每次比较两个相邻的元素, 如果顺序错误就把他们交换过来
 

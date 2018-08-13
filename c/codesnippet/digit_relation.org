@@ -10,3 +10,23 @@ unsigned int highestOneBit(unsigned int i, unsigned int *high) {
     return i - (i >> 1); // 获取最高位为1其他位为0时的值
 }
 #+END_SRC
+
+* 将字符串转换为数字的hash函数
+#+BEGIN_SRC c  一个示例函数
+unsigned int hashstr(const void *key) {
+    const char *ptr;
+    unsigned int val;
+    val = 0;
+    ptr = key;
+    while(*ptr != '\0') {
+        unsigned int tmp;
+        val = (val<<4) + (*ptr);
+        if((tmp = (val & 0xf0000000)) != 0) {
+            val = val ^ (tmp >> 24);
+            val = val ^ tmp;
+        }
+        ++ptr;
+    }
+    return val;
+}
+#+END_SRC

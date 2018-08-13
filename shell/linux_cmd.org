@@ -81,7 +81,6 @@ curl -H 'd1:v1' -H 'd2:v2' url
 curl --user name:password example.com
 
 
-
 * ICONV
 ICONV用于转换文件编码, 例如: 在Mac下将windows的GBK编码文件转为UTF-8编码文件.
 iconv -f GBK -t UTF-8 <input.txt >output.txt
@@ -112,3 +111,76 @@ tr -d  # 删除字符
 
 tr -s  # 压缩字符, 将多个连续重复出现的字符变为一个字符
 
+* tree
+** tree 命令显示中文乱码
+解决方法: 使用 tree -N 命令即可
+原因解释: tree 命令会对汉字字符进行转义, 因此看起来就像是乱码
+之后如果遇到这类问题, 应该首先查看命令的 man 手册
+
+** 忽略.svn, .git, .idea等目录
+alias tree="tree -CNAFa -I 'CVS|*.*.package|.svn|.git|.idea' --dirsfirst"
+* 查看Linux各个发型版本的信息
+** 通用命令
+lsb_release -a
+uname -a
+
+** Redhat,CentOS
+cat /etc/redhat-release  # redhat/centos
+
+rpm -q redhat-release  # redhat
+rpm -q centos-release  # centos
+
+cat /proc/version
+cat /etc/issue
+
+* 查看系统是64位还是32位
+getconf LONG_BIT: 输出64
+getconf WORD_BIT: 输出32
+file /bin/ls: 输出ELF 64-bit表示是64位系统
+
+* 删除乱码文件, 通过inode来删除
+ls -1: 只列出文件名
+ls -i -1: 列出文件的inode和文件名
+
+find -inum <inode-num> -delete: 删除指定<inode-num>的文件
+
+如果是文件夹的话:
+find -inum <inode-num> -exec rm -rf {} \;
+
+* lsof
+lsof -i@ip: 搜索打开的网络连接
+lsof +L 1: 寻找本地断开的打开文件
+lsof -p <pid>: 显示进程打开的文件
+
+* ps aux
+** stat字段说明
+D: 不可中断Uninterruptible(usually IO)
+R: 正在运行,或在队列中的进程
+S: 处于休眠状态
+T: 停止或被追踪
+Z: 僵尸进程
+W: 进入内存交换(从内核2.6开始无效)
+X: 死掉的进程
+<: 高优先级
+n: 低优先级
+s: 包含子进程
++: 位于后台的进程组
+l: 多线程, 克隆线程
+L: 有些页被锁进内存
+* route命令
+** 安装
+yum install net-tools: centos
+
+
+* 配置文件为什么叫xxrc
+"rc" 是取自"runcom", 来自麻省理工学院在1965年发展的CTSS系统. 相关文献曾记载这一段话:
+"具有从档案中取出一系列命令来执行的功能",这称为"run commands"(run是英语"运行"的意思,
+command是英语"命令"的意思,因此run commands就是"运行命令"的意思), 又称为"runcom",
+而这种档案又称为一个runcom(a runcom).一般以rc结尾的多为配置文件, 里面包含了软件运行前会去
+读取并运行的那些初始化命令.
+
+
+* 切换shell
+chsh <shell_path>
+* systemd命令
+[[http://www.ruanyifeng.com/blog/2016/03/systemd-tutorial-commands.html][参考资料]]

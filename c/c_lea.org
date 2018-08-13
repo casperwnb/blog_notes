@@ -264,6 +264,22 @@ rand(), 头文件: cstdlib, 生成一个[0, RAND_MAX]闭区间内的一个数. R
 需要随机数的程序在最开始的时候一般会调用srand(time(NULL)), 目的是初始化"随机种子".
 种子是伪随机数计算的依据. srand只需要在程序开始处调用一次即可, 不要在同一个程序中多次调用.
 
+* const char*与char* const
+#+BEGIN_SRC c
+void test() {
+    char a = 'a';
+    char b = 'b';
+
+    // ptr1可以变, 即可以指向其他的地址, 但是ptr1指向的值不能通过ptr1修改
+    const char* ptr1 = &a;
+    // 同上
+    char const* ptr2 = &a;
+
+    // ptr3不能修改, 即不可以指向其他的地址, 但是可以通过ptr3修改其指向的值
+    char* const ptr3 = &a;
+}
+#+END_SRC
+
 * 算法精解 - 读书笔记
 [[file:content/masteringalgorithwithccodeLea.org][算法精解读书笔记]]
 

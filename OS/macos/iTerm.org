@@ -1,0 +1,110 @@
+* iTerm使用
+** 快捷方式
+1. 不用鼠标选择文本
+   该机制可以用"搜索+Tab"来完成, 例如使用 ping 命令获取某个 IP 地址:
+   当 ping 完某个地址后, 会有 IP 地址出现, 此时使用 cmd+F 调出搜索框
+   然后输入该 IP 的前一个字符, 之后按 tab 键将该 IP 完整的选择即可
+   shift+tab 向左复制, 在该搜索框中可以使用 emacs 的快捷键
+2. 一键调出命令行
+   进入设置界面, 进入 Keys 选项卡, 可以设置一些快捷键操作, 设置 HotKey
+   可以启用一键调出命令行.
+3. 命令行标记功能
+   如果某个命令的执行输出会很多, 为了能快速的跳到该命令执行时的前面的内容, 可以先按下
+   cmd+shift+M将该位置记录下来, 当命令执行完成后, 如果想跳转到刚开始的位置处, 可以按下
+   cmd+shift+J
+4. 正则表达式搜索
+   cmd+F 调出搜索框, 然后点击搜索框中的放大镜按钮, 勾选 Regular Expression 即可
+5. 剪贴板历史记录
+   cmd+shift+h
+6. 快照返回
+   可以记录某个时间点执行了什么命令
+   cmd+option+B
+7. 标签排列
+   当打开了多个标签时, 为了方便定位标签, 可以使用 Cmd+option+E, 此时会出现搜索框
+   输入记忆中需要搜索的内容, 然后 iTerm 就会将最匹配的标签高亮显示出来, 此时按下
+   回车键就可以切换到该标签
+8. 智能选择
+   连续点击鼠标 4 次, 会根据我们鼠标所指向的文本内容智能的选中文本
+9. 文本选取
+   单击可以拖拽鼠标进行选择内容选择
+   双击可以选取整个单词
+   三击可以选取整行
+   选取某一部分, 按住 shift, 再点击某处可以选取整个矩形内的文本
+   按住 command+option 可以用鼠标画出一个矩形
+   按住 command 点击 url, 会在浏览器中打开 url, 点击文件夹, 会在 Finder 中打开该文件
+   选取文本后, 按住 command 同时拖动文本, 可以将文本粘贴到目标位置
++ 光标控制
+  ctrl + a: 行首
+  ctlr + e: 行尾
+  ctrl + f/b: 前移/后移一个字符
+  ctrl + p/n: 上一条/下一条命令
+  ctrl + r: 搜索历史命令
+  ctrl + d: 删除当前字符
+  ctrl + h: 删除之前的字符
+  ctrl + w: 删除光标前的单词
+  ctrl + k: 删除从光标到行尾的单词
+  ctrl + t: 交换光标处文本
+  ctrl+u: 清空当前行
+  command + -/+/0: 调整字体大小
+  command + r: 清屏(滚动到新的一屏)
+  ctrl + l: 清屏
++ 窗口操作
+  新建窗口: shift+command+d(横向), command+d(竖向)
+  关闭窗口: shift + command+w
+  切换窗口: command+<number>
+  前一窗口: command+`
+  后一窗口: command+~
++ 标签页操作
+  新建标签页: command + T
+  关闭标签页: command + W
+  前/后一标签: shift+command+[ / ]
+  Expose 标签页: option+command+E, 可用于全局搜索
+
+** 快捷方式汇总
+cmd+shift+M  # 标记位置
+cmd+shift+J  # 跳转到标记位置处
+cmd+shift+h  # 显示剪切板历史记录
+cmd+shift+B  # 显示时间点执行的命令
+cmd+option+E  # 多个标签内容搜索
+cmd+option+鼠标移动  # 可以画出一个矩形
+cmd+;  # 弹出自动完成提示
+cmd+/  # 显示光标
+cmd+enter  # 全屏/取消全屏
+
+** 修改配色
+进入设置界面, 选择"profiles"选项卡找到 colors 配色方案面板, 可以自行设置
+
+** 终端 UTF8 和 GBK 编码切换
+当需要对 iTerm2 终端进行编码切换时, iTerm2 使用切换 Profile 配置的方式
+1. 使用菜单栏的: iTerm -> Preference -> Terminal 选项卡, 建立另一个 Profile,名为 GBK
+   字符编码选择 GBK
+
+2. 编写切换脚本, 脚本名保存为 grun, 并赋予执行权限, 同时加入到系统可执行目录中
+   #+BEGIN_SRC shell
+   #!/bin/bash
+   # 使用 GBK Profile
+   echo -e "\033]50;SetProfile=GBK\a"
+   # 环境编码切换为 GBK
+   export.GBK
+   export LC_ALL=zh_CN.GBK
+   # 更改当前 iTerm2 tab title
+   echo -ne "\033]0;"$@"\007"
+   $@
+   echo -ne "\033]0;"${PWD/#$HOME/~}"\007"
+   # GBK 任务完成后，自动切换回默认编码（UTF-8）
+   echo -e "\033]50;SetProfile=Default\a"
+   export.UTF-8
+   export LC_ALL=zh_CN.UTF-8
+   #+END_SRC
+   使用: 当需要登录一台 GBK 编码的服务器时, 执行命令, grun ssh ${hostname}即可
+
+** 显示中文文件系统
+iTerm2 Preference——Profiles——Terminal 修改其中的文字编码为 utf-8
+然后在使用 ls 时加上参数-v, 这样就能显示中文字符了
+修改.inputrc 就可以输入中文了
+#+BEGIN_SRC shell
+set convert-meta off
+set meta-flag on
+set output-meta on
+#+END_SRC
+
