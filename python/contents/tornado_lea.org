@@ -83,3 +83,29 @@ class EchartData(NoBlockHandler):
 如果将MainHandler中的run_on_executor装饰器去掉, 则可以加载出数据, 添加该装饰器后, 就没有数据
 加载出来, 这是为什么呢?
 
+* Tornado保存HTTP POST上传的文件
+客户端发起一个HTTPS POST请求, 其中content-type为multipart/form-data
+#+BEGIN_SRC python
+class SaveImageHandler(tornado.web.RequestHandler):
+    def post(self):
+        # 获取文件大小
+        size = int(self.request.headers.get('Content-Length'))
+        # image是表单中'name'为'image'的文件元数据
+        image_metas = self.request.files["image"]
+        now = datetime.datetime.now()
+        month = "{}"
+        for image in image_metas:  # image有三个键, 可以通过image.keys()查看
+            # 分别是 'filename', 'body', 'content_type'
+            imgName = image["filename"].split(".")[-2:]
+            imgName = ".".join(imgName)
+
+            savePath = os.path.join(config.IMGPATH, "pics", 
+                str(now.year), str(now.month).zfill(2),
+                str(now.day).zfill(2))
+            if not os.path.exists(savePath):
+                os.makedirs(savePath)
+            savePath = os.path.join(savePath, imgName)
+
+            with open(savePath, 'wb') as f:
+                f.write(image['body'])
+#+END_SRC

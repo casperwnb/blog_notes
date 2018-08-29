@@ -1,0 +1,161 @@
+* Python 项目实战
+参考: 廖雪峰的官方网站
+
+** 环境搭建
+pip install jinja2 mysql-connector-python
+
+项目结构:
+#+BEGIN_SRC text
+python-webapp/          <-- 根目录
+|
++- backup/               <-- 备份目录
+|
++- conf/                 <-- 配置文件
+|
++- dist/                 <-- 打包目录
+|
++- www/                  <-- Web目录，存放.py文件
+|  |
+|  +- static/            <-- 存放静态文件
+|  |
+|  +- templates/         <-- 存放模板文件
+|
++- LICENSE               <-- 代码LICENSE
+#+END_SRC
+
+** 部署环境
+使用gunicorn, 它用类似Nginx的Master-Worker模式, 同时可以提供gevent的支持,
+不用修改代码,就能获得极高的性能.
+
+选用nginx服务器: 它可以处理静态资源, 同时作为反向代理把动态请求交给gunicorn处理.
+gunicorn负责调用Python代码, 这个模型如下:
+#+BEGIN_SRC text
+Nginx <--> gunicorn <--> pythonCode <--> Mysql
+#+END_SRC
+Nginx负责分发请求:
+#+BEGIN_SRC text
+Browser
+  |
+  |
+Nginx  <--- url=/static/ --> <pythonCode/static/目录>
+  |
+  |
+gunicorn <--- url=/  --> 使用python代码处理请求
+#+END_SRC
+
+在服务器上部署, 需要考虑到新版本运行不正常的情况, 需要回退到旧版本.
+每次用新的代码覆盖掉旧的文件是不行的, 需要一个类似版本控制的机制.
+由于Linux系统提供了软链接功能, 所以可以把www作为一个软链接, 它指向哪个目录,
+哪个目录就是当前运行的版本, 而Nginx和gunicorn的配置文件只需要指向www目录即可.
+
+使用supervisor来管理gunicorn的启动.
+服务的安装:
+apt-get install nginx gunicorn python-gevent supervisor mysql-server   # Ubuntu
+
+Fabric是一个自动部署工具, 本地安装: pip install fabric, Linux服务器不用安装fabric,
+fabric使用ssh直接登录服务器并执行部署命令.
+
+** fabric部署脚本
+Fabric的部署脚本叫fabfile.py, 将其放在项目的根目录下, 与www同级目录.
+Fabric只能运行命令行命令.
+
+Fabric提供local('...')来运行本地命令,
+with lcd(path):  将当前命令的目录设定为path目录.
+
+#+BEGIN_SRC python build命令
+# file: fabfile.py
+TarFile = "xxx.tar.gz"
+def build():
+    # 包含的目录
+    includes = ["static", "templates", "transwarp", "favicon.io", "*.py"]
+    # 排除的目录
+    excludes = ["test", ".*", "*.pyc", "*.pyo"]
+
+    # 在本地执行
+    local("rm -f dist/{}".format(TarFile))
+
+    with lcd(os.path.join(CurrentPath(), "www")):
+        cmd = ["tar", "--dereference", "-czvf", "../dist/{}".format(TarFile)]
+        cmd.extend(["--exclud='{}'".format(ex) for ex in excludes])
+        cmd.extend(includes)
+        local(" ".join(cmd))
+
+# 在命令行中执行: fab build, 就会执行该build函数.
+#+END_SRC
+
+#+BEGIN_SRC python deploy命令
+RemoteTmpTar = "/tmp/{}".format(TarFile)
+RemoteBaseDir = "/opt/www"
+
+def deploy():
+    newdir = "www-{}".format(datetime.now().strftime("%Y-%m-%d_%H.%M.%S"))
+    # 删除已有的tar文件, 在服务器上执行
+    run("rm -f {}".format(RemotBaseDir))
+
+    # 上传新的tar文件
+    put("dist/{}".format(TarFile), RemoteTmpTar)
+
+    # 创建新目录
+    with cd(RemoteBaseDir):
+        sudo("mkdir {}".format(newdir))
+
+    # 重置软连接, 会在服务器上执行
+    with cd(RemoteBaseDir):
+        sudo("rm -f www")  # 如果一个命令需要sudo权限, 就不能用run, 而使用sudo来执行.
+        sudo("ln -s {} www".format(newdir))
+        sudo("chown www-data:www-data www")
+        sudo("chown -R www-data:www-data {}".format(newdir))
+    # 重启python服务和nginx服务
+    with settings(warn_only=True):
+        sudo("supervisorctl stop xxx")
+        sudo("supervisorctl start xxx")
+        sudo("/etc/init.d/nginx reload")
+
+#+END_SRC
+
+** 配置supervisor
+将配置文件放在/etc/supervirsor/conf.d目录.
+#+BEGIN_SRC text
+[program:xx]
+command = /usr/bin/gunicorn --bind 127.0.0.1:9000 --workers 1 --worker-class gevent wsgiapp:application
+directory = /srv/awesome/www
+user = www-data
+startsecs = 3
+
+redirect_stderr         = true
+stdout_logfile_maxbytes = 50MB
+stdout_logfile_backups  = 10
+stdout_logfile          = /srv/awesome/log/app.log
+#+END_SRC
+
+** 配置Nginx
+将配置文件放到/etc/nginx/sites-available/目录中
+#+BEGIN_SRC conf
+server {
+    listen      80; # 监听80端口
+
+    root       /srv/awesome/www;
+    access_log /srv/awesome/log/access_log;
+    error_log  /srv/awesome/log/error_log;
+
+    # server_name awesome.liaoxuefeng.com; # 配置域名
+
+    # 处理静态文件/favicon.ico:
+    location /favicon.ico {
+        root /srv/awesome/www;
+    }
+
+    # 处理静态资源:
+    location ~ ^\/static\/.*$ {
+        root /srv/awesome/www;
+    }
+
+    # 动态请求转发到9000端口(gunicorn):
+    location / {
+        proxy_pass       http://127.0.0.1:9000;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+#+END_SRC

@@ -1,0 +1,11 @@
+* 安装mariadb
+yum install mariadb-server -y  # 如果已安装可以省略  
+systemctl start mariadb.service  # 启动服务  
+systemctl enable mariadb.service  # 开机启动服务  
+mysql -u root -p  # 登录mysql
+
+* 设置远程访问用户
+GRANT ALL PRIVILEGES ON *.* TO '<username>'@'%'IDENTIFIED BY '<pwd>' WITH GRANT OPTION;
+flush privileges;
+
+

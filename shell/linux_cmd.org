@@ -80,7 +80,6 @@ curl -H 'd1:v1' -H 'd2:v2' url
 有些网域需要HTTP认证，这时curl需要用到`--user`参数
 curl --user name:password example.com
 
-
 * ICONV
 ICONV用于转换文件编码, 例如: 在Mac下将windows的GBK编码文件转为UTF-8编码文件.
 iconv -f GBK -t UTF-8 <input.txt >output.txt
@@ -171,14 +170,12 @@ L: 有些页被锁进内存
 ** 安装
 yum install net-tools: centos
 
-
 * 配置文件为什么叫xxrc
 "rc" 是取自"runcom", 来自麻省理工学院在1965年发展的CTSS系统. 相关文献曾记载这一段话:
 "具有从档案中取出一系列命令来执行的功能",这称为"run commands"(run是英语"运行"的意思,
 command是英语"命令"的意思,因此run commands就是"运行命令"的意思), 又称为"runcom",
 而这种档案又称为一个runcom(a runcom).一般以rc结尾的多为配置文件, 里面包含了软件运行前会去
 读取并运行的那些初始化命令.
-
 
 * 切换shell
 chsh <shell_path>

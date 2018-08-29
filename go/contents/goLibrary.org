@@ -1,6 +1,7 @@
 * flag包
 ** 介绍
 用于接收和解析命令参数.
+指针是实现该标准库的关键技术, 使用命令行参数来设置对应变量的值.
 
 ** 使用
 #+BEGIN_SRC go
@@ -103,4 +104,148 @@ func (s *Student) Set(value string) error {
 var s Student
 
 flag.Var(&s, "student", "Help Msg")
+#+END_SRC
+** 一个问题
+#+BEGIN_SRC go
+func main() {
+	var name = getTag()
+    var age = getTag2()
+	flag.Parse()
+	fmt.Println(name, *age)
+}
+
+func getTag() string {
+	return *flag.String("name", "defaultName", "Help Doc")
+}
+
+func getTag2() *string {
+    return flag.String("age", "defaultName", "Help Doc")
+}
+
+// 运行go run main.go -name casper -age 100
+// 输出结果是: name为默认值, age的值正常
+// 原因:
+/*
+因为没有fmt.Parse()之前，flag.String("name", "everyone", "The greeting object.")的结果是
+"everyone"的指针，也就是默认值。一旦fmt.Parse()执行了，这个指针指向的字符串就变成了你给定
+的参数值了. 这里是指针会指向另一个字符串了，不再是"everyone"了。
+如果直接传字符串值回去，那么也就没办法改变它了.
+parse是参数的解析，然后去改变量值的指针指向的那个值
+*/
+#+END_SRC
+* os
+** os.Args
+os包以跨平台的方式, 提供了一些与操作系统交互的函数和变量.
+os.Args保存了变量, 是一个字符串的切片.
+#+BEGIN_SRC go
+for _, args := range os.Args {
+}
+
+// 或者
+import ("strings")
+strings.Join(os.Args, " ")  // 使用空格连接字符串, Join的效率比使用"+"的效率更高
+#+END_SRC
+
+** os.Exit
+用于退出程序
+
+** os的用法
+os.Getpid()  // 获取当前进程的PID
+os.Getppid()  // 获取当前进程父进程的PID
+
+** 管道
+#+BEGIN_SRC go
+// reader是管道的输出端, writer是管道的输入端
+reader, writer, err := os.Pipe()
+
+// 向管道写入数据
+n, err := writer.Write("Hello")
+
+output := make([]byte, 10)
+n, err := reader.Read(output)
+#+END_SRC
+注意: 如果它们是并发运行的, 那么在reader之上调用Read方法就可以按顺序获取到之前通过调用writer
+的Writer方法写入的数据. 为什么是并发运行?
+因为命名管道默认会在其中一端还未就绪时阻塞另一端的进程.
+
+#+BEGIN_SRC go  命名管道的正确用法
+// 注意: 不能调用reader的写方法, 或writer的读方法.
+reader, writer, err := os.Pipe()
+
+go func() {
+    output := make([]byte, 100)
+    n, err := reader.Read(output)
+}()
+
+input := make([]byte, 26)
+for i := 65; i <= 99; i++ {
+    input[i-65] = byte(i)
+}
+n, err := writer.Write(input)
+time.Sleep(200 * time.Millisecond)
+#+END_SRC
+
+os.Pipe()生成的管道是由底层系统级别的管道来支持的, 所以使用它们的要注意限制. 如:
+匿名管道会在管道缓冲区写满之后使写数据的进程阻塞, 以及命名管道会在其中一端未就绪前阻塞另一端
+进程.
+
+* bufio包
+用来处理输入和输出, Scanner类是该包最有用的特性之一, 读取输入并将其拆成行或单词.
+#+BEGIN_SRC go
+input := bufio.NewScanner(os.Stdin)
+for input.Scan() {  // 调用一次Scan就读入下一行数据, 并移除行末的换行符, 有数据是返回true
+    fmt.Println(input.Text())  // 读取的内容可以调用input.Text()获取
+}
+
+// 从文件中读取数据
+func ReadMyFile(f *os.File) {
+	input := bufio.NewScanner(f)
+	for input.Scan() {
+		fmt.Println(input.Text())
+	}
+}
+func main() {
+    f, _ := os.Open("filepath")
+    ReadMyFile(f)
+}
+
+// 读取unicode字符
+in := bufio.NewReader(os.Stdin)
+for {
+    r, n, err := in.ReadRune()  // return rune, nbytes, error
+    if err == io.EOF {
+        break
+    }
+
+    if r == unicode.ReplacementChar && n == 1 {
+        // 如果输入的是无效的UTF-8编码的字符, 返回就是unicode.ReplacementChar表示无效字符
+    }
+}
+
+in := bufio.NewReader(os.Stdin)
+input, err := in.ReadString('\n')  // 以\n为分隔符读取一段内容, 会包含最后的一个\n
+#+END_SRC
+* io/ioutil
+该包中的ReadFile将指定文件的内容全部读入内存中, 该函数返回一个字节切片, 必须将其转换为string才能
+当做字符串来操作.
+#+BEGIN_SRC go
+import ("io/ioutil")
+data, err := ioutil.ReadFile("filepath")
+#+END_SRC
+
+* io包
+io包提供了一个基于内存的有原子操作保证的管道.
+reader, writer := io.Pipe()
+在使用Close关闭管道的某一端之后, 另一端在写数据或读数据时会得到一个预定义的error值
+可以通过调用CloseWithError来定义这种情况下得到的error类型值.
+
+* net/http包
+** http.Get
+创建HTTP请求, 如果获取url数据成功, 会在resp这个结构体中得到访问的请求结果.
+resp的Body字段包括一个可读的服务器响应流.
+#+BEGIN_SRC go
+resp, err := http.Get(url)
+b, err := ioutil.ReadAll(resp.Body)
+nBytes, err := io.Copy(ioutil.Discard, resp.Body)  // 计算获取的字节数
+resp.Body.Close()
 #+END_SRC

@@ -1,0 +1,22 @@
+* Java环境搭建
+** Mac
+1. 在[[https://www.oracle.com/technetwork/java/javase/overview/index.html][java官网]] 下载对应版本的java sdk, 并安装
+2. 在~/.zshrc文件中添加如下内容:
+   #+BEGIN_SRC text
+# java settings
+JAVA_HOME="/Library/Java/JavaVirtualMachines/jdk-10.0.2.jdk/Contents/Home"
+CLASS_PATH="$JAVA_HOME/lib"
+PATH = "$PATH:$JAVA_HOME/bin"
+   #+END_SRC
+3. 编写java测试代码
+#+BEGIN_SRC java
+class Hello {
+    public static void main(String[] args) {
+        System.out.println("HELLO");
+    }
+}
+#+END_SRC
+4. 编译运行
+   javac hello.java  # 编译
+   java Hello  # 运行
+

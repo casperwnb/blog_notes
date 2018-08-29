@@ -1,0 +1,113 @@
+* WebGL
+WebGL是在浏览器中实现三维效果的一套规范.
+
+three.js是一个非常优秀的拥有操作WebGL原生API的库.
+
+[[https://github.com/mrdoob/three.js.git][three.js的github地址]]
+
+* Three.js
+** 一个简单的示例
+*** 源码目录
+Build: 包含three.js最终被引用的文件, 一个已经压缩, 一个没有压缩.
+Docs:  three.js的帮助文档, 里面有各个函数的API
+Editor:  一个类似3D-max的简单编辑程序, 能创建一些三维物体
+Examples: 一些有趣的例子demo
+Src: 源码目录
+Test:  测试代码
+Utils: 存放一些脚本, python文件的工具目录, 例如将3D-Max格式的模型转换为three.js特有的json模型
+
+*** 三大组件
+Three.js中, 要渲染物体到网页中, 需要3个组建, 场景(scene), 相机(camera)和渲染器(renderer).
+三大组件的关系是: 使用相机将场景渲染到网页上.
+#+BEGIN_SRC js
+var scene = new THREE.Scene();  // 场景
+var camera = new THREE.PerspectiveCamera(75,
+    window.innerWidth/window.innerHeight, 0.1, 1000);  // 透视相机
+var renderer = new THREE.WebGLRenderer();  // 渲染器
+
+// 设置渲染器的大小为窗口的内宽度, 也就是内容区的宽度
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+// 将元素插入到dom树中
+document.body.appendChild(renderer.domElement);
+
+#+END_SRC
+
+场景是所有物体的容器, 如果要显示一个物体, 需要将物体添加到场景中.
+
+*** 相机
+相机决定了场景中哪个角度的景色会显示出来. 相机就像人的眼睛一样,人站在不同位置,
+抬头或者低头都能够看到不同的景色.
+
+场景只有一种, 但相机却有很多种. 只需设置不同的参数即可.
+#+BEGIN_SRC js
+// 创建一个透视相机
+var camera = new THREE.PerspectiveCamera(75,
+    window.innerWidth/window.innerHeight, 0.1, 1000);
+#+END_SRC
+
+*** 渲染器
+渲染器决定了渲染的结果应该画在页面的什么元素上面, 并且以怎样的方式来绘制.
+渲染器renderer的domElement元素, 表示渲染器中的画布, 所有的渲染都是画在domElement上的.
+#+BEGIN_SRC js
+var renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+#+END_SRC
+
+*** 添加物体到场景中
+#+BEGIN_SRC js
+// 创建一个几何体
+var geometry = new THREE.CubeGeometry(1,1,1); 
+var material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+var cube = new THREE.Mesh(geometry, material); 
+scene.add(cube);
+#+END_SRC
+
+*** 开始渲染
+#+BEGIN_SRC js
+renderer.render(scene, camera);
+#+END_SRC
+
+*** 渲染循环
+渲染有两种方式: 实时渲染和离线渲染.
+
+离线渲染: 事先渲染好
+实时渲染: 需要不停的对画面进行渲染, 即使画面中什么也没有改变,也需要重新渲染.
+
+#+BEGIN_SRC js  渲染循环
+function render() {
+    cube.rotation.x += 0.1;
+    cube.rotation.y += 0.1;
+    renderer.render(scene, camera);
+    
+    // 该函数就是让浏览器去执行一次参数中的函数, 此处即render函数, 这样就形成了循环调用
+    requestAnimationFrame(render);
+}
+#+END_SRC
+
+** Mesh模型
+在计算机世界里, 3D世界是由点组成的, 两个点组成一条线, 三个不在一条直线上的点就能够组成一个
+三角形面, 无数三角形面就能组成各种形状, 通常把这种网络模型叫做Mesh模型.
+
+给物体贴上皮肤, 专业术语叫纹理.
+
+#+BEGIN_SRC js  three.js中的点
+THREE.Vector3 = function(x, y, z) {
+    this.x = x || 0;
+    this.y = y || 0;
+    this.z = z || 0;  // 当z=null或者undefine时, this.z的值为0
+}
+
+var point1 = new THREE.Vector3(1, 2, 3);
+point1.set(2, 3, 4);  // 重新设置点
+#+END_SRC
+
+** 坐标系
+Three.js使用的是右手坐标系, opengl默认情况下也还是右手坐标系.
+
+右手坐标系: 右手大拇指指向右边(x轴), 食指指向上边(y轴), 则弯曲的中指指向的就是z轴.
+因此x轴的正方向是向右, y轴正方向是向上, z轴正方向是从屏幕里到外.
+
+** 线条
+Three.js中, 一条线由点、材质和颜色组成.

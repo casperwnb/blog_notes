@@ -130,3 +130,329 @@ python实现的tail -f工具
 [[file:contents/python_data_gen.org][Python数据处理]]
 * Tornado
 [[file:contents/tornado_lea.org][Tornado学习]]
+
+* Python 邮件
+** SMTP
+SMTP是发送邮件协议, Python内置对SMTP的支持, 可以发送纯文本邮件、HTML邮件以及带附件的邮件.
+Python对smtp支持有smtplib和email两个模块. email负责构造邮件, smtplib负责发送邮件.
+
+** 一个最简单的纯文本邮件
+#+BEGIN_SRC python
+from email.mime.text import MIMEText
+import smtplib
+
+msg = MIMEText("content", "plain", "utf-8")
+from_addr = ""
+to_addr = ""
+pwd = ""
+
+server = smtplib.SMTP("smtp.server", "port")  # SMTP协议默认是25端口
+server.set_debuglevel(1)  # 打印调试信息, 打印出与SMTP服务器交互的所有信息
+server.login(from_addr, pwd)  # 登录smtp服务器
+
+# 可以一次发送给多个邮箱地址
+# as_string将MIMEText对象变为str
+server.sendmail(from_addr, [to_addr], msg.as_string())
+server.quit()  # 退出登录
+#+END_SRC
+
+MIMEText对象的第一个参数是邮件正文, 第二个参数是MIME的subtype, 传入"plain"后, 最终的MIME就是
+"text/plain", 使用"utf-8"编码保证语言兼容性.
+
+然后通过SMTP发出去. SMTP协议就是简单的文本命令和响应.
+
+此代码发送的邮件存在如下几个问题:
+1. 邮件没有主题
+2. 收件人的名字没有显示为友好的名字
+3. 收到邮件后却提示不在收件人中
+
+原因是: 邮件主题、如何显示发件人、收件人等信息并不是通过SMTP协议发给MTA, 而是包含在发给MTA
+的文本中, 因此需要添加这些信息.
+#+BEGIN_SRC python
+from email.header import Header
+from email.utils import (parseaddr, formataddr)
+
+def FormatAddr(s):
+    name, addr = parseaddr(s)
+    return formataddr((
+        Header(name, "utf-8").encode(),
+        addr.encode("utf-8") if isinstance(addr, unicode) else addr
+    ))
+
+msg["From"] = FormatAddr("Python爱好者 <842590178@qq.com>")
+msg["To"] = FormatAddr("Casper <xxxx@xxx.xx>")  # 多个收件人可以使用","分割开
+
+subject = "主题"
+if isinstance(subject, unicode):
+    subject = subject.encode("utf-8")
+else:
+    subject = subject.decode("utf-8")
+# 对主题进行编码, 防止乱码产生
+msg["Subject"] = Header(subject)
+#+END_SRC
+查看Email的原始内容, 可以看到如下经过编码的邮件头:
+#+BEGIN_SRC text
+From: =?utf-8?b?UHl0aG9u54ix5aW96ICF?= <xxxxxx@163.com>
+To: =?utf-8?b?566h55CG5ZGY?= <xxxxxx@qq.com>
+Subject: =?utf-8?b?5p2l6IeqU01UUOeahOmXruWAmeKApuKApg==?=
+#+END_SRC
+这是经过Header对象编码的文本, 包含utf-8编码信息和Base64编码的文本.
+
+** 发送HTML邮件
+在构造MIMEText对象时, 将HTML字符串传进去, 再将"plain"改为"html"
+
+** 发送附件
+带附件的邮件可以看做是包含若干部分的邮件: 文本和各个附件本身, 所以可以构造一个MIMEMultipart
+对象代表邮件本身, 然后往里面加上一个MIMEText作为邮件正文,
+再继续往里面加上表示附件的MIMEBase对象即可.
+#+BEGIN_SRC python
+from email import encoders
+
+msg = MIMEMultipart()
+msg["From"] = FormatAddr("xxx")
+
+# 邮件正文是MIMEText
+msg.attach(MIMEText("xxx", "plain", "utf-8"))
+
+#添加附件就是加上一个MIMEBase,
+with open("xxx.png", "rb") as f:
+    # 设置附件的MIME和文件名,
+    mime = MIMEBase("image", "png", filename="xxx.png")
+    # 加上必要的头信息
+    mime.add_header("Content-Disposition", "attachment", filename="test.png")
+    mime.add_header("Content-ID", "<0>")
+    mime.add_header("X-Attachment-ID", "0")
+    # 把附件的内容读入
+    mime.set_payload(f.read())
+    # 用Base64编码
+    encoders.encode_base64(mime)
+    # 添加到MIMEMultipart
+    msg.attach(mime)
+    # 之后按照正常流程把msg发送出去即可
+#+END_SRC
+
+** 邮件正文显示图片
+如果直接在HTML邮件中链接图片地址是不太可行的, 因为大部分邮件服务商都会自动屏蔽带有外链的图片,
+因为不知道这些链接是否指向恶意网站.
+
+方法1:
+先把图片作为附件添加进去,然后在HTML中通过引用src="cid:0"就可以把附件作为图片嵌入了.
+如果有多个图片,给它们依次编号,然后引用不同的cid:x即可, 例如:
+把上面代码加入MIMEMultipart的MIMEText从plain改为html,然后在适当的位置引用图片,
+#+BEGIN_SRC python
+msg.attach(MIMEText('<html><body><h1>Hello</h1>' +
+    '<p><img src="cid:0"></p>' +
+    '</body></html>', 'html', 'utf-8'))
+#+END_SRC
+
+方法2:
+将图片以Base64编码后的内容直接放入到邮件的HTML正文中, 例如:
+#+BEGIN_SRC python
+# 将base64后面的xxx替换为文件的base64编码内容
+f = open("xxx.png", "rb")
+fbase64 = base64.b64encode(f.read())
+f.close()
+content = '<html><body><h1>图片内容</h1><img src="data:image/png;base64,{}" /></body></html>'.format(
+fbase64)
+#+END_SRC
+
+** 同时支持HTML和Plain格式
+在发送HTML的同时再附加一个纯文本, 如果收件人无法查看HTML格式的邮件, 就可以自动降级查看纯文本邮件
+#+BEGIN_SRC python
+msg = MIMEMultipart("alternative")
+msg.attach(MIMEText('hell', 'plain', "utf-8"))
+msg.attach(MIMEText("<html><body>hello</body></html>", "html", "utf-8"))
+# 正常发送即可
+#+END_SRC
+
+** 加密SMTP
+使用标准的25端口连接SMTP服务器时, 使用的是明文传输, 发送邮件的整个过程可能被窃听. 此时就可以
+使用加密SMTP会话, 原理就是先建立SSL连接, 然后在使用SMTP协议发送邮件.
+
+某些邮件服务商, 提供的SMTP服务必须要经过加密传输. 如Gmail, 示例:
+#+BEGIN_SRC python
+# gmail的smtp端口是587
+smtp_server = "smtp.gmail.com"
+smtp_port = 587
+server = smtplib.SMTP(smtp_server, smtp_port)
+
+# 调用starttls, 创建安全连接
+server.starttls()
+# 剩下流程与之前一致
+#+END_SRC
+
+** 小结
+构造一个邮件对象就是一个Messag对象, 如果构造一个MIMEText对象, 就表示一个文本邮件对象.
+如果构造一个MIMEImage对象, 就表示一个作为附件的图片. 要把多个对象组合起来,
+就用MIMEMultipart对象, 而MIMEBase可以表示任何对象. 继承关系如下:
+#+BEGIN_SRC text
+Message
++- MIMEBase
+   +- MIMEMultipart
+   +- MIMENonMultipart
+      +- MIMEMessage
+      +- MIMEText
+      +- MIMEImage
+#+END_SRC
+
+** Pop3收取邮件
+收取邮件就是编写一个MUA作为客户端, 从MDA把邮件获取到用户的电脑或者手机上.
+收取邮件最常用的协议是POP协议, 目前版本号是3, 俗称POP3.
+
+Python内置的poplib模块, 实现了POP3协议, 可以直接用来收邮件.
+POP3协议收取的不是一个已经可以阅读的邮件本身, 而是邮件的原始文本. 要将其变成可阅读邮件,
+还需要用email模块提供的各种类来解析原始文本, 变成可阅读的邮件对象.
+
+收取邮件分两步:
+1. 用poplib把邮件的原始文本下载到本地
+2. 用email解析原始文本, 还原邮件对象
+
+#+BEGIN_SRC python
+import poplib
+import email
+from email.parser import Parser
+from email.header import decode_header
+from email.utils import parseaddr
+
+email_addr = "xx"
+pwd = "xx"
+pop3_server = "xx"
+pop3_port = 995
+
+# 连接到Pop服务器
+# server = poplib.POP3(pop3_server)
+# 建立SSL连接
+server = poplib.POP3_SSL(pop3_server, pop3_port)
+
+# 调试信息
+# server.set_debuglevel(1)
+
+# 可选: 打印pop3服务器的欢迎文字
+welcome = server.getwelcome()
+
+# 身份认证
+server.user(email_addr)
+server.pass_(pwd)
+
+# stat()返回邮件数量和占用空间
+server.stat()
+
+# list()返回所有邮件的编号
+resp, mails, octets = server.list()
+# 可以查看返回的列表类似["1 82933", "2 1388", ...]
+
+# 获取最新一封邮件, 索引号从1开始
+idx = len(mails)
+
+# 可以通过循环来依次获取邮件内容
+resp, lines, octets = server.retr(idx)
+
+#lines存储了邮件的原始文本的每一行, 可以获得整个邮件的原始文本
+msg_content = "\r\n".join(lines)
+
+# 将邮件内容解析为Message对象, 包含嵌套的其他MIMEBase对象,嵌套可能不止一层
+msg = Parser().parsestr(msg_content)
+
+# 可以根据邮件索引号直接从服务器删除邮件
+# server.dele(idx)
+# 关闭连接
+server.quit()
+
+#+END_SRC
+
+** 解析邮件
+递归的打印出Message对象的层次结构
+#+BEGIN_SRC python
+# indent用于缩进显示
+def PrintMsg(msg, indent=0):
+    if indent == 0:
+        for header in ["From", "To", "Subject", "Cc", "Date"]:
+            value = msg.get(header, "")
+            if value:
+                if header == "Subject":
+                    # 需要解码Subject字符串
+                    value = DecodeStr(value)
+                elif header == "Date":  # 日期可以不用处理
+                    pass
+                else:
+                    # 解码Email地址
+                    hdr, addr = parseaddr(value)
+                    name = DecodeStr(hdr)
+                    value = u"{} <{}>".format(name, addr)
+            print("{}{}: {}".format(" " * indent, header, value))
+    if msg.is_multipart():
+        # 如果邮件对象是一个MIMEMutipart, get_payload()返回list, 包含所有子对象
+        parts = msg.get_payload()
+        for n, part in enumerate(parts):
+            print("part {}\n{}--------".format(" " * indent, n, " " * indent))
+            # 递归打印每个子对象
+            PrintMsg(part, indent+1)
+    else:
+        # 邮件对象不是一个MIMEMultipart, 就使用contentType判断
+        contentType = msg.get_content_type()
+        if contentType == "text/plain" or contentType == "text/html":
+            # 纯文本或HTML内容
+            content = msg.get_payload(decode=True)
+            # 要检测文本编码
+            charset = guessCharset(msg)
+            if charset:
+                content = content.decode(charset)
+            print("{}Text: {}".format(" "*indent, content + "..."))
+        else:
+            # 不是文本, 作为附件处理
+            print("{}Attachement: {}".format(" "*indent, contentType))
+
+def DecodeStr(s):
+    # decode_header返回一个list, 因为像Cc, Bcc这样的字段可以包含多个邮件地址
+    value, charset = decode_header(s)[0]
+    if charset:
+        value = value.decode(charset)
+    return value
+
+def guessCharset(msg):
+    # 先从msg对象获取编码
+    charset = msg.get_charset()
+    if charset is None:
+        # 如果获取不到, 再从Content-Type字段获取
+        contentType = msg.get("Content-Type", "").lower()
+        pos = contentType.find("charset=")
+        if post != -1:
+            charset = contentType[post+8:].strip()
+    return charset
+#+END_SRC
+在解码类似附件名等信息时, 可以使用上述代码中的DecodeStr函数.
+
+** 下载附件
+#+BEGIN_SRC python
+def GetContent(msg, indent=0):
+    for part in msg.walk():
+        fileName = part.get_filename()
+        contentType = part.get_content_type()
+        if fileName:  # 附件的文件名不为空, 其他情况获取的fileName为None
+            # 解码文件名称
+            h = email.Header.Header(fileName)
+            # 每个元组代表一个附件信息, 第一个参数是文件名, 第二个参数是格式编码, 可能没有
+            dh = email.Header.decode_header(h)  # [(filename, "encode"), ()]
+            fileName = dh[0][0]
+
+            if dh[0][1]:
+                fileName = unicode(fileName, dh[0][1])
+                fileName = fileName.encode("utf-8")
+            attachData = part.get_payload(decode=True)
+            # ext = os.path.splitext(fileName)[-1]
+            attachFile = "/tmp/{}".format(fileName)
+            with open(attachFile, "wb") as f:  # 保存附件
+                f.write(attachData)
+        elif contentType in ["text/plain", "text/html"]:  # 获取邮件内容正文
+            data = part.get_payload(decode=True)
+            charset = guessCharset(part)
+            data = data.decode(charset)
+            print(data)
+#+END_SRC
+
+** Code
+[[file:codesnippet/sendmail.py][发送邮件代码]]
+
+* Python codesnippet
+[[file:codesnippet/readexcel.py][excel读取]]
+* Python 项目实战

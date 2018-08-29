@@ -1,0 +1,19 @@
+* Trident - IE内核
+Trident的前身是微软的Mosaic(历史上第一款浏览器). Trident就是在Mosaic代码的基础之上修改而来,
+对外输出的产品就是微软的IE, 所以它也被称为"IE 内核".
+
+IE 在Mac OS下的版本使用的是Tasman 内核.
+
+IE8的JS引擎是JScript, IE9则开始使用Chakra.
+
+* Gecko - Firefox内核
+* Webkit - Safari内核
+WebKit的前身是KDE小组的KHTML. WebKit所包含的WebCore(渲染引擎)和JSCore引擎来自KDE的KHTML和KJS.
+
+* Chromium/Blink - Chrome内核
+Chromium在WebKit的基础上将代码进行重构, 大大的提高了编译的速度, 因此渲染引擎渲染的页面效果也与
+WebKit 有一些出入.
+
+之后Google(丹麦)还自己研发了V8引擎, 用于JS的解析和执行, 这就是后来Node.js的运行环境.
+Google将V8引擎替换到原本WebKit的JSCore, 为Chrome带来了更快的 JavaScript 运算速度.
+

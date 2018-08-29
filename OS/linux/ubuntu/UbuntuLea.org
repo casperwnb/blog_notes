@@ -1,0 +1,2 @@
+* Ubuntu终端显示中文乱码
+执行命令: sudo locale-gen zh_CN.UTF-8

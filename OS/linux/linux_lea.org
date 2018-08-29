@@ -18,3 +18,5 @@ lsattr: 用于读取文件或目录的特殊权限
 * DIM-SUM操作系统
 ** 准备工作
 [[https://mp.weixin.qq.com/s/5Tj7UVdHLJw-opQEGjY64A][web参考链接]]
+
+* Ubuntu

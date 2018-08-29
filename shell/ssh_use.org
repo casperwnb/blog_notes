@@ -141,7 +141,7 @@ ssh-agent服务也就重置了.
 2. 修改ubunut的配置文件 /etc/ssh/sshd_config
    将PermitRootLogin without-password注释
    添加新内容: PermitRootLogin yes
-   然后重启ssh服务即可
+   然后重启ssh服务即可, service ssh restart
 
 * ssh 连接centos慢
 修改服务器上的/etc/ssh/sshd_config

@@ -1,0 +1,1038 @@
+* GO学习笔记
+** GOPATH
+GOPATH的值可以是一个目录的路径, 也可以包含多个目录路径. 每个目录都代表go语言的一个工作区.
+这些工作区用于放置go语言的源码文件, 以及安装后的归档文件和可执行文件.
+
+** go 标准命令概述
+[[https://github.com/GoHackers/go_command_tutorial][Go命令教程web链接]]
+
+go fix  # 用于修正指定代码包的源文件中包含的过时语法和代码调用
+go generate  # 用于识别代码包中源码文件中的go:generate注释, 并执行其携带的任意命令
+go list  # 用于显示指定代码包的信息, 是代码包分析的一大便捷工具
+go  vet  # 用于检查指定代码包中的源码, 并报告发现可疑代码问题.
+go tool pprof  # 以交互的方式访问一些性能概要文件, 该文件可以通过runtime和runtime/pprof中的包
+生成
+go tool trace  # 读取go程序踪迹文件, 并以图形化的方式展示出来. 通过标注库代码包runtime/trace和
+net/http/pprof程序来生成.
+
+通用标记:
+-a  # 用于强制重新编译所有涉及的go语言代码包(包括go语言标准库中的代码)
+-n  # 使命令仅打印其执行过程中用到的所有命令, 而不真正执行他们
+-race  # 用于检测并报告指定Go语言程序中存在的数据竞争问题
+-v  # 用于打印命令执行过程中涉及的代码包
+-work  # 用于打印命令执行时生成和使用的临时工作目录的名字, 且命令执行后保留其结果文件
+-x  # 使命令打印其执行过程中用到的所有命令, 同时执行他们.
+
+godoc -http=:9090  # 在本机启动go doc服务
+
+** go build
+go build -a  # 强制编译
+go build -x  # 查看go build命令具体都执行了哪些操作
+go build -n  # 只查看具体执行的操作, 而不真的执行
+go build -v  # 查看go build命令编译的代码包名称
+
+** 代码包
+[[https://github.com/hyper0x/go_command_tutorial/blob/master/0.3.md][web参考链接]]
+
+对代码包的远程导入路径进行自定义的方法是: 在该代码包中的库源码文件的包声明语句的右边加入导入注释
+如:
+#+BEGIN_SRC go
+package semaphore // import "golang.org/x/sync/semaphore"
+#+END_SRC
+
+[[https://github.com/hyper0x/go_command_tutorial/blob/master/0.3.md][自定义代码包导入路径说明-web链接]]
+
+*** 思考题
+1. 如果需要导入两个代码包, 这两个代码包的导入路径的最后一级是相同的, 会导致冲突吗?
+   答: 分情况讨论
+   例如:导入路径为"dep/lib/flag"和"dep/lib2/flag", 如果这两个路径中的包的命名不一样,
+   则不会引发冲突, 即假设dep/lib/flag中的包名为flag1, dep/lib2/flag中的包名为flag2,
+   在导入时其实go编译器已经将其区分开了, 对于dep/lib/flag中的包的调用需要时flag1.XX,
+   dep/lib2/flag中包的调用需要使用flag2.XX
+
+   如果这两个路径中的包的命名一样, 则就会引发冲突, 解决方法就是导入时使用别名,
+   #+BEGIN_SRC go
+import (
+a "dep/lib/flag"
+b "dep/lib2/flag"
+)
+   #+END_SRC
+   
+** 模块级私有 - internal包
+导入internal包的规则约束如下:
+1. internal包的源码文件必须在以"internal"命名的文件夹下
+2. 包名必须是 package internal
+3. 如果导入代码本身不在以"internal"目录的父目录为root的目录树中, 那么不允许其导入路径中包含
+   internal元素. 例如:
+   #+BEGIN_SRC text
+a/b/internal/
+a/b/c/
+a/b/d/
+a/c/f/
+以上目录结构中, 目录"c", "d"与"internal"目录同级, 因此在"c", "d"中可以导入internal包,
+目录f不能导入internal包
+   #+END_SRC
+   a/b/c/internal/d/e/f 只可以被以a/b/c为根目录树下的代码导入, 不能被a/b/g下的代码导入
+** vendor目录
+Go1.5+之后, 可以从当前项目的vendor目录下导入包
+
+** 基本语法
+#+BEGIN_SRC go
+counts := make(map[string]int)  //声明一个字典, 键为string, 值为int
+
+// 从命令行中读取数据
+input := bufio.NewScanner(os.Stdin)
+for input.Scan() {
+    counts[input.Text()] ++;
+}
+
+// 声明一个Point结构体
+type Point struct {
+    x, y int
+}
+
+// 遍历字符串时, 其每个字符的类型是rune类型, 该类型是一个int32的数
+var name = "你好"
+for _, c := range name {
+}
+
+for i := range name {
+    // 此处i只是索引值
+}
+#+END_SRC
+
+fmt.Printf的转换格式定义:
+| %d         | 十进制整数                               |
+| %x, %o, %b | 16, 8, 2进制整数                         |
+| %f, %g, %e | 浮点数                                   |
+| %t         | 布尔: true/false                         |
+| %c         | 字符(rune)unicode码点                    |
+| %s         | 字符串                                   |
+| %q         | 带双引号的字符串"abc"或带单引号的字符'c' |
+| %T         | 变量的类型                               |
+| %%         | 输出百分号标志                           |
+
+#+BEGIN_SRC go
+// %[1]表示使用第一个操作数, 即10
+// %#表示在使用%o, %x或%X时输出时生成0, 0x, 0X前缀
+fmt.Printf("%d, %[1]o, %#[1]x\n", 10)
+
+// 打印8个字符宽度, 小数点后3个字符宽度, 如果不足8个字符宽度, 会使用空格填充,
+// 超过8个字符则不会截断
+fmt.Printf("%8.3f\n", 1.334567)
+#+END_SRC
+
+go中, 返回函数中的局部变量的地址也是安全的.
+
+go中, 如果两个类型有着相同的底层类型, 但他们是不同的数据类型, 因此不能被相互比较或混在一个表达式
+运算. 对于每个类型T, 都有一个对应的类型转换操作T(x), 用于将x转换为T类型.
+注意: 如果T是指针类型可能会需要用小括号包装T, 如(*int)(0). 只有当两个类型的底层基础类型相同时,
+才允许这种转型操作, 或者两者都是指向相同底层结构的指针类型, 这些转换只改变类型而不会影响值本身.
+
+类型转换注意事项:
+1. 对于整数类型值、整数常理之间的类型转换, 原则上只要源值在目标类型的可表示范围内就是合法的.
+   但需要注意的是, 源整数类型的可表示范围较大, 而目标类型的可表示范围较小, 此时会将高位截断.
+   需要记住: 当整数值的类型的有效范围由宽变窄时, 需要在补码形式下截掉一定数量的高位二进制数
+2. 可以将一个整数值转换为一个string类型的值, 但被转换的整数值应该可以代表一个有效的Unicode码
+   点, 否则转换结果是"�", 该符号的Unicode码点是U+FFFD, 是Unicode标准中定义的Replacement
+   Character, 用于替换那些未知的、不被认可的以及无法展示的字符. 可以参考unicode编码规范.
+   
+3. 关于string类型与各种切片类型之间的互转
+   一个值在从string类型向[]byte类型转换时代表着以UTF-8编码的字符串会被拆分成零散、独立的字节.
+   除了与ASCII编码兼容的那部分字符集, 以UTF-8编码的某个单一字节是无法代表一个字符的.
+   
+   一个值在从string类型向[]rune类型转换时代表字符串会被拆分成一个个Unicode字符.
+
+go语言的习惯是在if中处理错误然后直接返回, 这样可以确保正常执行的语句不需要代码缩进
+
+** 最简单的web服务
+#+BEGIN_SRC go
+package main
+
+import (
+	"fmt"
+	"net/http"
+)
+
+func main() {
+	http.HandleFunc("/", handler)
+	http.ListenAndServe("localhost:8000", nil)
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "URL.Path=%q\n", r.URL.Path)
+}
+#+END_SRC
+
+** 作用域
+要特别注意短变量声明语句的作用域范围, 例如:
+#+BEGIN_SRC go
+var cwd string
+
+func init() {
+    cwd, err := os.Getwd()
+    if err != nil {
+        log.Fatalf("os.Getwd failed: %v", err)
+    }
+    fmt.Println(cwd)
+}
+
+// 这段代码的本意是, 初始化cwd为当前路径, 虽然cwd已经在外部已经声明过了,
+// 但由于 := 还是会将cwd重新声明为新的局部变量, 由于内部变量屏蔽了外部变量, 因此
+// 全局的cwd值并不会改变, 解决方法
+func init() {
+    var err error
+    cwd, err = os.Getwd()
+    if err != nil {
+        log.Fatalf("os.Getwd failed: %v", err)
+    }
+}
+
+
+func A() {
+	var name string = "outerName"
+	{
+		a := map[string]string{}
+		name, _ := a["capser"]
+		fmt.Println("InnerName: ", name)
+
+	}
+	fmt.Println("OuterName: ", name)
+}
+// 对于A函数的这种书写法, 可以使用go vet -shadow xx.go来检查出错误
+#+END_SRC
+
+** 数据类型
+Go语言将数据类型分为4类: 基础类型, 复合类型, 引用类型, 接口类型
+
+int, uint是两种一般对应特定CPU平台机器字大小的有符号和无符号整数.
+
+Unicode字符是rune类型, 是和int32类型等价, 通常用于表示一个Unicode码点.
+byte与uint8是等价类型.
+
+uintptr是指针类型, 没有指定具体的bit大小, 但足以容纳指针.
+
+%取模运算符的符号和被取模数的符号总是一致的, -5%3=-2, -5%-3=-2
+/除法的行为依赖于操作数是否全为整数, 5.0/4.0=1.25, 5/4=1
+
+&^: 位清空
+z = x &^ y
+如果y对应的位为0, 则保持不变; 如果y对应的位为1, 则左侧数清零
+
+注意: 内置的len函数返回一个有符号的int, 考虑一下如果返回是无符号整数, 则如下的循环将无法结束
+#+BEGIN_SRC go
+medals := []string{"gold", "silver", "bronze"}
+for i:=len(medals)-1; i>=0; i-- {
+}
+#+END_SRC
+此时i的值为无符号数, i>=0会永远成立, 因此就成了无限循环了.
+
+可以使用关键字type声明自定义的各种类型, 这些类型必须在Go语言基本类型和高级类型的范畴之内.
+有一种被叫做"别名类型"的类型, 声明如下:
+#+BEGIN_SRC go
+type MyString = string
+#+END_SRC
+这表示MyString是string类型的别名类型, 其区别除了名称不同之外, 其他都是一样的.
+#+BEGIN_SRC go
+s := "Hello"
+
+var ms MyString
+ms = s  // 可以直接赋值
+#+END_SRC
+Go语言内建的基本类型种就存在两个别名类型, byte是uint8, rune是int32的别名类型.
+形如:
+#+BEGIN_SRC go
+type MyString2 string  // 注意: 此处没有等号, 这样MyString2和string就是两个不同的类型.
+// 此方式也叫类型的再定义.  string可以称为MyString2的潜在类型.
+#+END_SRC
+潜在类型相同的不同类型的值之间是可以进行类型转换的. 但对于集合类型的类型[]MyString2与[]string
+就不可以转换, 因为他们的潜在类型分别是MyString2, string.
+即使两个类型的潜在类型相同, 它们的值之间也不能进行判断或比较, 变量之间也不能赋值.
+
+** 浮点数
+遵循IEEE754浮点数规范, 该规范被所有现代CPU支持.
+其范围可以在math包中找到, math.MaxFloat32, math.MaxFloat64
+
+float32可以提供大约6个十进制数的精度, float64可以提供大约15个十进制数的精度.
+
+math.IsNaN用于测试一个数是否是非数NaN, math.NaN则返回非对应的值.
+
+** 复数
+math/cmplx包提供了复数处理的函数.
+
+** 字符串
+内置len函数, 会返回一个字符串中的字节数目(不是rune字符数目), 索引s[i]操作返回第i个字节的字节值
+原生字符串使用"`"标记.
+
+rune字面量有5种表示法:
+1. 直接使用字符表示
+2. 使用"\x"为前导并后跟两位16进制数, 此方法可以表示宽度为1字节的值, 即ASCII值
+3. 使用"\"为前导并跟3位8进制数, 用于表示0~255
+4. 使用"\u"为前导后跟4位16进制数, 只能用于表示2字节宽度的值
+5. 使用"\U"为前导跟8位16进制数, 只能用于表示4字节宽度的值, 即Unicode编码规范中的UCS-4表示法
+
+** UTF8编码
+UTF8使用1到4个字节来表示每个Unicode码点, ASCII部分字符只使用1个字节, 常用字符部分使用2或3个字节
+表示. 每个符号编码后第一个字节的高端bit位用于表示总共有多少编码个字节, 后续的每个高端bit都以10
+开头. 例如:
+| 0xxxxxxx                            | runes 0-127 (ASCII)               |
+| 110xxxxx 10xxxxxx                   | 128~2047 (values < 128 unused)    |
+| 1110xxxx 10xxxxxx 10xxxxxx          | 2048~65535 (values < 2048 unused) |
+| 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx | 65536~0x10ffff                    |
+
+unicode/utf8包提供了用于rune字符序列的UTF8编码和解码的功能.
+#+BEGIN_SRC go
+for i:=0; i<len(s); {
+    // 该函数返回一个r和长度, r对应字符本身, 长度对应r采用UTF8编码后的编码字节数目
+    r, size := utf8.DecodeRuneInString(s[i:])
+    fmt.Printf("%d\t%c\n", i, r)
+    i += size
+}
+
+// 统计UTF8编码字符串的字符数
+s := "你好, 世界"
+count := 0
+for _, v := range s {
+    fmt.Printf("%c", v)
+    count++
+}
+
+utf8.RuneCountInString(s)  // 直接调用函数计算字符个数
+#+END_SRC
+
+如果遇到一个错误的UTF8编码输入, 将生成一个特别的Unicode字符\uFFFD,
+在印刷中这个符号通常是一个黑色六角或钻石形状, 里面包含一个白色的问号.
+
+当程序遇到这样一个字符, 通常是一个危险信号, 说明输入并不是一个完美没有错误的UTF8字符串.
+
+strings包提供了许多如字符串的查询、替换、比较、截断、拆分和合并等功能.
+bytes包也提供了很多类似功能的函数, 针对和字符串有着相同结构的[]byte类型.
+strconv包提供了布尔值、整型值、浮点数和对应字符串的相互转换, 还提供了双引号转义相关的转换
+
+#+BEGIN_SRC go bytes.Buffer的使用
+var buf bytes.Buffer
+
+for i := 0; i<len(s); i++ {
+    buf.WriteByte(s[i])  // 将字符串按字节一个字节一个字节的写入
+}
+
+fmt.Println(buf.String())
+
+for _, v := range s {
+    buf2.WriteRune(v)  // 写入一个Unicode字符
+}
+#+END_SRC 
+
+** 字符串和数字的转换
+#+BEGIN_SRC go
+x := 123
+y := fmt.Sprintf("%d", x)
+fmt.Println(strconv.FormatInt(int64(x), 2))
+
+x, err := strconv.Atoi("123")  // 转换为整数
+
+// base 10, up to 64bits, 第三个参数用于指定整数的大小, 如16表示int16, 0表示int
+x, err := strconv.ParseInt("123", 10, 64)
+
+// fmt.Scanf也可以解析输入的字符串和数字
+var s string
+var d int
+fmt.Scanf("%d %s", &d, &s)
+fmt.Scan(&d, &s)  // 也可以从标准输入中读取数据, 类型是使用变量的类型
+#+END_SRC
+
+** 常量类型
+常量表达式的值在编译期计算, 而不是在运行期. 每种常量的潜在类型都是基础类型.
+常量间的所有算术运算、逻辑运算和比较运算的结果都是常量, 对常量的类型转换操作或以下函数调用
+都是返回常量结果: len, cap, real, image, complex和unsafe.Sizeof
+
+常量可以是构成类型的一部分, 如用于指定数组类型的长度.
+#+BEGIN_SRC go
+const IPv4Len = 4
+var p [IPv4Len]byte
+#+END_SRC
+
+虽然一个常量可以有任意一个确定的类型, 但许多常量并没有一个明确的基础类型, 编译器为这些没有明确
+的基础类型的数字常量提供比基础类型更高精度的算术运算. 可以认为至少有256bit的运算精度.
+如: ZiB和YiB的值已经超出了任何Go语言中整型能表达的范围, 但它们依然是合法的常量
+#+BEGIN_SRC go
+const (
+	_ = 1 << (10 * iota)
+	KiB // 1024
+	MiB // 1048576
+	GiB // 1073741824
+	TiB // 1099511627776
+	PiB // 1125899906842624
+	EiB // 1152921504606846976
+	ZiB // 1180591620717411303424
+	YiB // 1208925819614629174706176
+)
+fmt.Println(YiB/ZiB)  // 能输出正确的值
+
+var f float32 = 212
+r := 5/9*(f-32) // 会让结果变成0, 原因是 5/9是一个无类型的整型, 其结果为0
+#+END_SRC
+
+** 复合类型
+#+BEGIN_SRC go
+// a是数组类型, 不要以为是字典类型, 1,2,3是数组中的索引, 未指定的索引所对应的值为"零值"
+a := [...]string{1: "1", 2: "2"}
+
+// 使用上述方法可以定义一个数组, 最后一个值设置为特殊值, 如
+b := [...]int{99:-1}  // 这是一个含有100个元素的数组, 最后一个值为-1, 其他值为0
+fmt.Printf("%d", b)  // 以10进制输出数组内容
+#+END_SRC
+
+** 类型断言
+用于判断一个接口值的实际类型是否为某个类型, 或一个非接口值的类型是否实现了某个接口类型.
+需注意:
+1. 如果v1是一个非接口值, 那么必须在做类型断言之前把它转成接口值, 因为Go中的任何类型都是空接口
+   类型的实现类型, 一般做法是: interface{}(v1).(I1)
+2. 如果类型断言为否, 断言失败, 此时会引发一个运行时异常, 解决方法是:
+   var i1, ok := interface{}(v1).(I1)
+   ok保存了类型断言的成败, 如果成功, i1就是经过类型转换后的I1类型的值, 否则是I1类型的"零值"
+3. 如果需要判断某个变量是否是某种类型, 则需要先将其转换成某个接口类型的值.
+   #+BEGIN_SRC go
+var a int
+a = 2
+v, ok := interface{}(a).(int)  // 先转换为一个空接口类型, 再做类型断言
+   #+END_SRC
+
+使用switch来处理断言
+#+BEGIN_SRC go
+var v interface{}
+
+switch v.(type) {
+    case string:
+        fmt.Println(v.(string))
+    case int, uint, int32, int64:
+        fmt.Println(v)
+    default:
+        fmt.Println("Error")
+}
+
+// 或者
+// i的类型一定是v的值的实际类型.
+switch i := v.(type) {
+    case string:
+        fmt.Println(i)
+    case int, uint, int32, int64:
+        fmt.Println(i)
+    default:
+        fmt.Println("Error")
+}
+#+END_SRC
+
+** 切片
+如果切片操作超出cap(s)的上限将导致一个panic异常, 超出len(s)则是意味着扩展了slice.
+#+BEGIN_SRC go
+a := [...]int{20: 1}
+// b := a[:25]  // 无法通过编译
+b := a[:10]
+c := b[:25]  // 运行时就会抛出panic
+#+END_SRC
+
+计算切片的容量:
+使用切片字面量时, 初始容量与长度相同.
+使用make创建切片时, 如果为给定第三个参数, 则容量与长度相同
+使用切片操作时创建的切片, 其容量是, 原切片容量-新建切片的开始索引位置, 如:
+#+BEGIN_SRC go
+a := make([]int, 10)
+b := a[2:5] // 切片容量是: 10-2=8
+#+END_SRC
+
+切片无法向左扩展, 即b无法看到a的前两个数据.
+
+切片的扩展:
+在一般情况下, 在扩展时新切片会是旧切片的两倍容量, 当源切片长度大于1024个元素时, 以1.25倍速度
+复制一个slice只是对底层的数组创建了一个新的slice别名.
+例如: 将slice元素循环向左旋转n个元素的方法, 三次调用reverse反转函数, 第一次是反转开头的n个元素,
+然后反转剩下的元素, 最后是反转整个slice元素
+#+BEGIN_SRC go
+func reverse(s []int) {
+    // for中多个变量的赋值
+    for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+        s[i], s[j] = s[j], s[i]
+    }
+
+    // for i, j, k := 0, 10, 20; ; i, j, k = i+1, j-1, k+1 {}
+}
+
+// 反转开头的2个元素
+s := []int{1, 2, 3, 4, 5, 6}
+reverse(s[:2])
+reverse(s[2:])
+reverse(s)
+#+END_SRC
+
+slice之间不能比较, 即不能使用==操作符来判断两个slice是否含有全部相等元素. 标准库提供了高度
+优化的bytes.Equal函数来判断两个字节型slice是否相等, 对于其他类型的slice, 只能自己展开每个元素
+进行比较.
+
+slice唯一合法的比较操作是与nil进行比较. 一个nil值的slice的长度和容量都是0, 但也有非nil值的
+slice的长度和容量也是0的. 如: []int或make([]int, 3)[3:]
+#+BEGIN_SRC go 
+var s []int  // len(s) == 0, s == nil
+s = nil  // len(s) == 0, s == nil
+s = []int(nil) // len(s) == 0, s == nil
+s = []int{}  // len(s) == 0, s != nil
+#+END_SRC
+
+如果需要测试一个slice是否为空, 使用len(s) == 0来判断, 而不应该用s == nil来判断.
+
+** 数组
+#+BEGIN_SRC go 返回一个二维数组
+// 方法1:
+func CaserArray(r, c int) [][]int {
+	ans := [][]int{}
+	for i := 0; i < r; i++ {
+		t := []int{}
+		for j := 0; j < c; j++ {
+			t = append(t, j)
+		}
+		ans = append(ans, t)
+	}
+
+	return ans
+}
+
+// 方法2:
+func CaserArray(r, c int) [][]int {
+	ans := make([][]int, r)
+	for i := 0; i < r; i++ {
+		ans[i] = make([]int, c)
+		for j := 0; j < c; j++ {
+			ans[i][j] = j
+		}
+	}
+
+	return ans
+}
+
+#+END_SRC
+** slice内存技巧
+#+BEGIN_SRC go 在原有slice内存空间之上返回不包含空字符串的列表
+func noempty(str []string) []string {
+    i := 0
+    for _, s := range str {
+        if s != "" {
+            str[i] = s
+            i++
+        }
+    }
+    return str[:i]
+}
+
+// 等价于
+func noempty2(str []string) []string {
+    out := str[:0]
+    for _, s := range str {
+        if s != "" {
+            out = append(out, s)
+        }
+    }
+    return out
+}
+#+END_SRC
+
+** 字典
+字典中的迭代顺序不是确定的, 并且不同的哈希函数实现可能导致不同的遍历顺序.
+如果键不在字典中, 获取该键会返回"零值".
+禁止对map中的元素进行取地址操作.
+
+#+BEGIN_SRC go
+ages := make(map[string]int)
+ages["casper"] = 29
+delete(ages, "casper")  // 删除键casper
+
+age, ok := ages["bob"]  // ok是布尔值, 用于标识ages中是否存在bob键, 存在则返回true
+
+// 创建字典
+sexs := map[string]string {
+    "casper": "m",
+}
+
+ages := map[string]int{}  // 创建空字典
+#+END_SRC
+
+Go并没有提供一个set类型, 可以用map实现类似set的功能. 有时候需要一个map或set的key是slice类型,
+但map的key必须是可比较的类型, 此时可以定义一个辅助函数k, 将slice转为map对应的string类型的key,
+确保只有x和y相等时k(x) == k(y)才成立, 如下:
+#+BEGIN_SRC go
+var m = make(map[string]int)
+func k(list []string) string { return fmt.Sprintf("%q", list)}
+func Add(list []string) { m[k(list)]++ }
+func Count(list []string) { return m[k(list)] }
+#+END_SRC
+
+#+BEGIN_SRC go 以下代码运行结果是什么
+type Param map[string]interface{}
+
+type Show struct {
+    Param
+}
+
+func main() {
+    s := new(Show)
+    s.Param["RMB"] = 10000000
+}
+#+END_SRC
+答案: 运行时错误, 原因是s中的字典Param是nil, 改法如下:
+#+BEGIN_SRC go
+func main() {
+    s := new(Show) // s := Show{} // 使用此语句声明s时, Param任然是nil的.
+    s.Param = Param{}
+    s.Param["RMB"] = 10000000
+}
+#+END_SRC
+
+不能修改字典中value为结构体的属性值, 不管属性值是int, string还是其他任何类型
+#+BEGIN_SRC go
+type Student struct {
+    name string
+}
+
+func main() {
+    m := map[string]Student{"people": "casper"}
+    m["people"].name = "candices"
+}
+#+END_SRC
+
+** 结构体
+结构体成员的排列顺序不一样, 那样就定义了不同的结构体类型. 结构体成员如果大写则是导出的, 否则是
+非导出的.
+
+如果结构体的全部成员都是可以比较的, 则结构体也是可以比较的, 此时的结构体就可以用于map的key类型.
+
+结构体类型属于值类型, 其零值不是nil.
+结构体中不仅可以关联字段, 还可以关联方法.
+
+#+BEGIN_SRC go
+type Employee struct {
+    ID, Salary int  // 相邻的成员类型如果相同可以被合并到一行
+    Name string
+}
+
+func GetEmployee() *Employee {
+    e := Employee{ID:1, Name:"casper"}
+    return &e
+}
+
+type Talk interface {
+    Hello(userName string) string
+}
+
+type SimpleCn struct {
+    name String
+    talk Talk
+}
+// 如果该函数返回的不是指针类型, 会报编译错误.
+// 原因是: 如果返回类型不是指针, 赋值语句的左边并不确定是一个变量,
+// 调用函数返回的是值, 并不是一个可取地址的变量
+GetEmployee().ID = 10
+#+END_SRC
+
+** 结构体嵌入与匿名成员
+#+BEGIN_SRC go
+type Point struct {
+    X, Y int
+}
+
+type Circle struct {
+    Point  // go语言特性, 只声明一个成员对应的数据类型而不指名成员的名字, 这就是匿名成员
+    Radius int
+}
+#+END_SRC
+
+匿名成员的数据类型必须是命名的类型或指向一个命名的类型的指针, 任何命名类型都可以作为结构体的
+匿名成员.
+得益于匿名嵌入的特性, 可以直接访问叶子属性而不需要给出完整的路径, 如:
+#+BEGIN_SRC go
+var c Circle
+c.X = 1  // 也可以是 c.Point.X = 1
+c.Y = 2
+#+END_SRC
+
+结构体字面值没有简短表示匿名成员的语法, 即如下的语句都不能通过编译
+#+BEGIN_SRC go
+c := Circle{8, 8, 8}
+c := Circle{X:8, Y:8, Radius:8}
+#+END_SRC
+只能使用如下的字面值进行赋值:
+#+BEGIN_SRC go
+c := Circle{
+    Point: Point{X:8, Y:8},
+    Radius: 5
+}
+#+END_SRC
+
+嵌入一个没有任何子成员类型的匿名成员类型的好处:
+可以获得匿名类型的方法集.
+简短的点运算符可以用于选择匿名成员嵌套的成员, 也可以用于访问他们的方法. 实际上, 外层的结构体不
+仅仅获得了匿名成员类型的所有成员, 而且也获得了该类型导出的全部的方法. 该机制可以用于将一个有简单
+行为的对象组合成有复杂行为的对象.
+
+** JSON
+encoding/json, encodnig/xml, encoding/asn1等包提供支持.
+
+JSON使用的是\Uhhhh转义数字来表示一个UTF-16编码(UTF-16和UTF-8一样是一种变长的编码, 有些unicode
+需要使用4个字节表示; 而且UTF-16还有大小端的问题).
+
+#+BEGIN_SRC go
+// Year字段 "``"标识的叫做Tag, Tag中json对应值的第一部分用于指定JSON对象的名字, 比如Year在转成
+// json后的键名为released. omitempty表示如果值为空或0时不生成JSON对象
+// 将json转成map的操作叫做unmarshaling, 通过json.Unmarshal函数完成.
+type Movie struct {
+	Title  string
+	Year   int  `json:"released"`
+	Color  bool `json:"color,omitempty"`
+	Actors []string
+}
+
+var movies = []Movie{
+	{Title: "Cas", Year: 1942, Color: false, Actors: []string{"Hum", "Ingrid"}},
+	{Title: "Cool Hand Luke", Year: 1967, Color: true, Actors: []string{"Paul"}},
+	{Title: "Bullitt", Year: 1968, Color: true, Actors: []string{"Steve", "Jac"}},
+}
+
+func main() {
+	data, err := json.Marshal(movies)
+	if err != nil {
+		log.Fatalf("json marshaing failed: %v", err)
+	}
+	fmt.Printf("%s\n", data)
+
+	indentData, _ := json.MarshalIndent(movies, "", "  ")
+	fmt.Printf("%s\n", indentData)
+}
+
+// 读取url请求的web数据
+var movie Movie
+resp, _ := http.Get(url)
+byteData, _ := ioutil.ReadAll(resp.Body)
+resp.Body.Close()
+json.Unmarshal(byteData, &movie)  // movie就是解析后的数据
+
+// 可以简化为
+if err := json.NewDecoder(resp.Body).Decode(&movie); err != nil {
+}
+#+END_SRC
+
+** 函数和方法
+1. 接受者变量代表的值实际上是源值的一个复制品, 如果该值不是指针类型的, 那么在值方法中是无法去
+   改变源值的. 而指针值与其复制品指向的是同一个地方, 所以在指针方法中就可以修改源值. 如果接受者类型
+   是某个引用或它的别名类型, 也是可以改变源值的.
+2. 对于某个非指针的数据类型, 与它关联的方法的集合中只包含它的值方法, 而对于它的指针类型, 其方法
+   集合中既包含值方法也包含指针方法.
+   在非指针数据类型的值上, 也是能够调用其指针方法的.
+
+** 接口
+用于定义一组行为, 其中每个行为都由一个方法声明表示. 接口类型中的方法只有方法签名没有方法体. 如:
+#+BEGIN_SRC go
+type Talk interface {
+    Hello(userName string) string
+    Talk(heard string) (string, bool, error)
+}
+#+END_SRC
+
+只要一个数据类型的方法集合中包含Talk接口的声明的所有方法, 那么它就是一定是Talk接口的实现类型.
+#+BEGIN_SRC go
+type myTalk string
+
+func(talk *myTalk) Hello(userName string) string {}
+
+func(talk *myTalk) Talk(heard string) (string, bool, error) {}
+#+END_SRC
+
+Go的数据类型之间没有继承关系, 接口类型之间也是如此. 一个接口类型可以嵌入任意其他接口类型.
+#+BEGIN_SRC go
+type Chatbot interface {
+    Name() string
+    Begin() (string, error)
+    Talk
+    End() error
+}
+#+END_SRC
+
+** defer
+用于延迟调用指定的函数, 只能出现在函数的内部. 此处被调用的函数叫做延迟函数.
+#+BEGIN_SRC go
+func outerFunc() {
+    defer fmt.Println("defer run")
+    fmt.Println("First")
+}
+#+END_SRC
+
+1. 当外围函数中的语句正常执行完毕时, 只有其中所有的延迟函数都执行完毕, 外围函数才执行完毕
+2. 当执行外围函数中的return语句时, 只有其中的延迟函数都执行完毕后, 外围函数才会真正返回
+3. 当外围函数中的代码引发运行时异常时, 只有其中所有的延迟函数执行完毕后, 该运行时异常才会真正
+   被扩散至调用函数
+
+defer函数的优点:
+1. 对延迟函数的调用总会在外围函数执行结束前执行, 会在return命令前被执行
+2. defer语句在外围函数函数体中的位置不限, 并且数量不限
+3. Go中可以抛出一个panic异常, 然后在defer中通过recover捕获并处理异常
+4. 如果有多个defer, 则异常会被最近的recover()捕获并正常处理.
+   #+BEGIN_SRC go
+func main() {
+	defer_call()
+}
+
+func defer_call() {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err) //err 就是panic传入的参数
+		}
+		fmt.Println("打印前")
+	}()
+
+	defer func() { // 必须要先声明defer，否则recover()不能捕获到panic异常
+		if err := recover(); err != nil {
+			fmt.Println(err) //err 就是panic传入的参数
+		}
+		fmt.Println("打印中")
+	}()
+
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err) //err 就是panic传入的参数
+		}
+		fmt.Println("打印后")
+	}()
+	panic("触发异常")
+}
+   #+END_SRC
+
+使用defer需要注意:
+1. 如果在延迟函数中使用外部变量, 就应该通过参数传入
+   #+BEGIN_SRC go
+func PrintNum(){
+    for i := 0; i < 5; i++ {
+        defer func(n int) {
+            fmt.Println(n)
+        }(i)
+    }
+}
+   #+END_SRC
+2. 同一个外围函数内多个延迟函数的执行顺序满足"先定义后执行".
+3. 延迟函数调用若有参数值传入, 那么参数的值会在当前defer语句执行时求出
+   #+BEGIN_SRC go
+func calc(index string, a, b int) int {
+	ret := a + b
+	fmt.Println(index, a, b, ret)
+	return ret
+}
+
+func main() {
+	a := 1
+	b := 2
+	defer calc("1", a, calc("10", a, b))
+	a = 0
+	defer calc("2", a, calc("20", a, b))
+	b = 1
+}
+// 输出结果:
+/*
+10 1 2 3
+20 0 2 2
+2 0 2 2
+1 1 3 4
+*/
+   #+END_SRC
+
+** panic和recover
+为了报告运行期错误, Go内建了panic函数. 可以接受任意类型的参数值, 通常是string或error, 这样可读
+性更高.
+#+BEGIN_SRC go
+func outerFunc() {
+    innerFunc()
+}
+
+func innerFunc() {
+    panic(errors.New("Error"))
+}
+#+END_SRC
+panic会沿着调用栈的反方向进行传播, 直到到达当前goroutine的调用栈的最顶层.
+
+recover用拦截panic, 可以使程序从当前的异常状态中恢复并重新获得流程控制权.
+recover会返回一个interface{}类型的结果, 如果当时的程序出现异常, 则该结果就是非nil的.
+#+BEGIN_SRC go
+defer func() {
+    if p := recover(); p != nil {
+        fmt.Println("recover")
+    }
+}
+#+END_SRC
+
+** 管道
+用于父进程与子进程以及同祖先的子进程之间的通信.
+
+#+BEGIN_SRC go
+cmd0 := exec.Command("echo", "-n", "My First Go Pipe.")
+stdoutpipe, err := cmd0.StdoutPipe()
+if err != nil {
+    fmt.Printf("StdoutPipe Error: %s\n", err)
+}
+
+if err := cmd0.Start(); err != nil {
+    fmt.Printf("Start Error: %s\n", err)
+}
+
+var outputBufo bytes.Buffer
+for { // 循环读取
+    output := make([]byte, 5)  // 故意设置的很小, 为了演示循环读取
+	n, err := stdoutpipe.Read(output)  // 将读出的输出数据存入调用方传递给它的字节切片
+	if err != nil {
+	    if err == io.EOF {
+		    break
+        } else {
+		    fmt.Printf("Read Error: %s\n", err)
+			return
+		}
+	}
+	if n > 0 {
+		outputBufo.Write(output[:n])
+	}
+}
+fmt.Println(outputBufo.String())
+
+// 循环读取的部分可以替换为
+outputBufo := bufio.NewReader(stdoutpipe)
+output0, _, err := outputBufo.ReadLine()
+if err != nil {
+    fmt.Printf("Error: %s\n", err)
+}
+fmt.Println(string(output0))
+#+END_SRC
+
+#+BEGIN_SRC go 匿名管道
+
+cmd1 := exec.Command("ps", "aux")
+cmd2 := exec.Command("grep", "mainx")
+
+// outputBuf1丛当了匿名管道
+var outputBuf1 bytes.Buffer
+cmd1.Stdout = &outputBuf1
+
+if err := cmd1.Start(); err != nil {
+    fmt.Printf("cmd1 Start Error: %s\n", err)
+	return
+}
+if err := cmd1.Wait(); err != nil {
+    fmt.Printf("cmd1 Wait Error: wait %s\n", err)
+	return
+}
+
+cmd2.Stdin = &outputBuf1
+var outputBuf2 bytes.Buffer
+cmd2.Stdout = &outputBuf2
+if err := cmd2.Start(); err != nil {
+    fmt.Printf("cmd2 Start Error: %s\n", err)
+	return
+}
+// 如果找不到数据, err的值非nil
+if err := cmd2.Wait(); err != nil {
+    fmt.Printf("cmd2 Wait Error: %s\n", err)
+	return
+}
+fmt.Printf("%s\n", outputBuf2.Bytes())
+#+END_SRC
+
+* 文本和HTML模板
+** 模板
+#+BEGIN_SRC go
+const templ = `{{.TotalCount}} issues:
+{{range .Items}}----------------------
+Number: {{.Number}}
+User:
+{{.User.Login}}
+Title:
+{{.Title | printf "%.64s"}}
+Age:
+{{.CreatedAt | daysAgo}} days
+{{end}}`
+
+func daysAgo(t time.Time) int {
+    return int(time.Since(t).Hours() / 24)
+}
+#+END_SRC
+
+对于每一个"{{action}}"的形式, 都有一个当前值的概念, 对应点操作符, 写作"."
+当前值"."是最初被初始化为调用模板的参数.
+在一个action中, "|"操作符表示将前一个表达式的结果作为后一个函数的输入, 类似于Unix中的管道的概念.
+
+#+BEGIN_SRC go 模板渲染
+// 将模板转换为内部表示, New函数的参数名, 可以任意给定
+report, _ := template.New("report").Funcs(template.FuncMap{"daysAgo": daysAgo}).Parse(templ)
+// 或者是
+report := template.Must(template.New("report").Funcs(template.FuncMap{"daysAgo": daysAgo}
+).Parse(templ))
+
+report.Execute(os.Stdout, data)  // 渲染数据
+
+#+END_SRC
+
+text/template与html/template都具有相同的API和模板语言, 但html/template增加了一个将字符串自动
+转义特性, 这可以避免输入字符串和HTML、javascript、CSS或URL语法产生冲突的问题. 还可以避免一些
+长期存在的安全问题, 如通过生成HTML注入攻击, 通过构建一个含有恶意代码的问题标题, 这些都可能让
+模板输出错误的输出.
+
+* 信号
+** 定义
+每个信号都有一个以"SIG"为前缀的名字.
+os/signal中定义了信号的API实现. os.Signal接口类型.
+#+BEGIN_SRC go
+type Signal interface {
+    String() string
+    Signal() // to distinguish from other stringers
+}
+#+END_SRC
+其中Signal方法的声明并没有实际意义. 只是作为os.Signal接口类型的一个标识, 在Go标准库中, 所有
+实现它的类型的Signal方法都是空方法, 所有实现此接口类型的值都可以表示一个操作系统信号.
+
+syscall包中有与不同操作系统所支持的每一个标准信号对应的同名常量. 这些信号常量类型都是
+syscall.Signal的, syscall.Signal是os.Signal接口的一个实现类型, 同时也是一个int类型的别名类型.
+
+syscall.Signal类型的String方法的代码中, 还会发现一个包级私有的、名为signals的变量, 该数组中
+每个索引值都代表一个标准信号的编号, 而对应的元素则是针对该信号的一个简短描述, 这些描述分别出现
+在那些信号常量的字符串表示形式中.
+
+** 函数
+os/signal包中的Notify函数用来当操作系统向当前进程发送指定信号时发出通知.
+func Notify(c chan<- os.Signal, sig ...os.Signal)
+
+Notify函数会将当前进程接受到的指定信号放入参数c代表的通道类型中, 此时函数的调用方就可以从这个
+signal接收通道中按顺序获取操作发来的信号.
+
+第二个参数是一个可变长参数, sig代表的意思是我们希望自行处理的所有信号. 接收到需要自行处理的信号
+后, os/signal包中的程序会把它封装成syscall.Signal类型的值并放入到signal接受通道中.
+
+可以为第一个参数绑定实际值, 此时signal处理程序会把我们的意图理解为想要自行处理所有的信号, 并把
+接受到的几乎所有信号都逐一进行封装并放入到signal接收通道中.
+#+BEGIN_SRC go
+sigRecv := make(chan os.Signal, 1)
+sigs := []os.Signal{syscall.SIGINT, syscall.SIGQUIT}
+signal.Notify(sigRecv, sigs...)  // 只处理SIGINT, SIGQUIT操作
+#+END_SRC
+
+signal处理程序在向signal接收通道发送值时, 并不会因为通道已满而产生阻塞, 因此signal.Notify函数
+的调用方应该确保signal接收通道会有足够的空间缓存传递来的信号.
+
+类Unix系统有两种信号既不能自行处理也不会被忽略, 即SIGKILL, SIGSTOP
+
+func Stop(c chan<-os.Signal): 取消掉在之前调用signal.Notify函数时告知signal处理程序需要自行处理
+若干信号的行为. 只有把当初传递给signal.Notify函数的那个signal接收通道作为调用Stop函数时的参数值,
+才能如愿以偿的取消掉之前的行为, 否则不起任何作用.
+#+BEGIN_SRC go
+signal.Stop(sigRecv)
+close(sigRecv)  // 关闭通道
+#+END_SRC
+
+* 其他
+ch := make(chan interface{}) 和 ch := make(chan interface{},1)是不同的.
+前者是无缓冲的, 不仅仅是只能向ch通道放一个值而是一直要有人接收,
+那么ch <- elem才会继续下去, 要不然就一直阻塞着; 既: 有接收者才去放,没有接收者就阻塞.
+
+后者是缓冲区大小为1, 即使没有接收者也不会阻塞,因为缓冲大小是1, 只有当放第二个值的时候,
+第一个还没被人拿走, 这时候才会阻塞.
+

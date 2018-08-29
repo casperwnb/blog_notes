@@ -29,3 +29,8 @@ build/: #忽略所有在build文件夹下的文件
 doc/*.txt: #忽略 doc/notes.txt, 但不包括多层下.txt例如: doc/server/arch.txt
 doc/**/*.pdf: #忽略所有在doc目录下的.pdf文件
 #+END_SRC
+** 清除工作区中未add的数据
+git clean -fd  # 删除未add到暂存区的数据
+
+** 撤销git add
+git reset

@@ -34,55 +34,28 @@ def quicksort(A):
   return quicksort(less) +[povit] + quicksort(greater)
 #+END_SRC
 
-#+BEGIN_SRC c 一种C实现  #TODO: 没有理解代码的意思
-void quicksort(int *A, int maxlen, int begin, int end) {
-    int i, j;
-    if(begin < end) {
-        i = begin + 1;
-        j = end;
-        while(i<j) {
-            if(A[i] > A[begin]) {
-                swap(&A[i], &A[j]);
-                --j;
-            } else {
-                ++i;
-            }
-        }
-
-        if(A[i] >= A[begin]) {
-            --i;
-        }
-        swap(&A[begin], &A[i]);
-        quicksort(A, maxlen, begin, i);
-        quicksort(A, maxlen, j, end);
-    }
-}
-#+END_SRC
-
 #+BEGIN_SRC c
-void quicksort(int *A, int start, int end) {
-    if (start < end) {
-        int i=start, j=end, x = A[start];
-
-        while (i < j) {
-            while (i < j && A[j] >= x) {
-                --j;
-            }
-            if(i<j) {
-                A[i++] = A[j];
-            }
-            
-            while(i<j && A[i] <=x )
-                ++i;
-
-            if (i < j)
-                A[j--] = A[i];
-        }
-
-        A[i] = x;
-        quicksort(A, start, i-1);
-        quicksort(A, i+1, end);
+void quicksort(int *a, int left, int right) {
+    if(left > right) {
+        return;
     }
+
+    int i=left, j=right, povit=a[left], tmp;
+    while(i!=j) {
+        while(a[j]>=povit && j>i) --j; // 从右往左找到第一个小于哨兵的值
+        while(a[i]<=povit && j>i) ++i; // 从左往右找到第一个大于哨兵的值
+
+        if(i < j) { // 交换两个值
+            tmp = a[i];
+            a[i] = a[j];
+            a[j] = tmp;
+        }
+    }
+    a[left] = a[i];  // 将哨兵数归位
+    a[i] = povit;
+
+    quicksort(a, left, i-1);
+    quicksort(a, i+1, right);
 }
 #+END_SRC
 * 算法解答

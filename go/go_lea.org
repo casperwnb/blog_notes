@@ -1,22 +1,126 @@
 * golang错题集
-* GO学习笔记
-** GOPATH
-GOPATH的值可以是一个目录的路径, 也可以包含多个目录路径. 每个目录都代表go语言的一个工作区.
-这些工作区用于放置go语言的源码文件, 以及安装后的归档文件和可执行文件.
-
-** go build
-go build -a  # 强制编译
-go build -x  # 查看go build命令具体都执行了哪些操作
-go build -n  # 只查看具体执行的操作, 而真的不执行
-go build -v  # 查看go build命令编译的代码包名称
-
-** 代码包
-[[https://github.com/hyper0x/go_command_tutorial/blob/master/0.3.md][web参考链接]]
-
-对代码包的远程导入路径进行自定义的方法是: 在该代码包中的库源码文件的包声明语句的右边加入导入注释
-如:
-#+BEGIN_SRC go
-package semaphore // import "golang.org/x/sync/semaphore"
-#+END_SRC
+* GO基础知识
+[[file:contents/goBasic.org][Go基础知识]]
 
 * Go库
+[[file:contents/goLibrary.org][Go标准库]]
+
+* Go官方版本管理工具 - dep
+** 安装
+[[https://github.com/golang/dep][github地址]]
+
+brew install dep  # mac
+brew upgrade dep  # mac
+
+curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh  # Linux平台安装
+
+** 使用 - 以一个例子来操作
+1. 建立一个目录, 并将该目录加入到GOPATH环境变量中(src前的路径即可)
+   mkdir ~/goWorkSpace/CasperCode/src
+   然后配置环境变量:
+   export PATH="~/goWorkSpace/CasperCode/"
+   export PATH=$PATH:$(go env GOPATH)/bin
+   export GOPATH=$(go env GOPATH)
+2. 在src目录下再建立目录, 我理解的是该目录就是一个一个的工程了
+   cd ~/goWorkSpace/CasperCode/src && mkdir demo
+3. 进入工程目录
+   cd demo && dep init -v  # 初始化
+
+   注意: 如果需要将旧工程也使用dep来管理, 则将旧工程拷贝到src目下, 然后进入该目录执行
+   dep init -v即可, dep会自动创建依赖
+   
+   执行该命令后, 会生成两个文件Gopkg.lock, Gopkg.toml和一个vender目录
+   如果报错"Gopkg.toml and Gopkg.lock are out of sync"需要执行一下dep ensure -v
+
+   Gopkg.toml: 是依赖管理的核心文件, 可以生成也可以手动修改
+   Gopkg.lock: 是生成的文件, 不要手工修改
+   vender目录是golang1.5以后依赖管理目录, 这个目录的依赖代码是优先加载的
+
+   dep init大致会做如下几件事情:
+   1. 利用gps分析当前代码包中的包依赖关系
+   2. 将分析出的项目包的直接依赖约束写入项目根目录下的Gopkg.toml文件中
+   3. 将项目依赖的所有第三方包在满足Gopkg.toml中约束范围内的最新信息写入Gopkg.lock中
+   4. 创建root vender目录, 并且以Gopkg.lock为输入, 将其中的包下载到root vender下面
+
+   如果对dep自动分析出来的各种约束和依赖的版本没有异议, 此时就可以将Gopkg.toml和Gopkg.lock
+   文件作为项目的源码文件提交到版本库中. 是否提交vender下的依赖代码到代码仓库, 取决于自己.
+   提交vender的好处是, 即便没有dep, 也可以实现真正的reproduceable build, 带代码厂库就变得
+   异常庞大, 且更新vender时, 会有大量的diff会影响查看正常代码的提交.
+      
+** 其他命令
+dep help ensure  # 依赖管理帮助
+dep ensure -add <code_url>  # 添加一条依赖
+dep ensure -add <code_url>@=0.4.3  # @=参数指定的是某个tag
+dep ensure -v  # 添加之后一定要执行ensure, 确保同步
+dep ensure -update -v  # 更新依赖
+dep prune -v  # 删除没有用的package
+dep status  # 查看当前依赖情况
+
+在编辑Gopkg.toml文件后, 需要执行:
+dep ensure -update -v && dep ensure -v
+
+** dep cache
+dep也是有本地缓存, 其缓存在$GOPATH/pkg/dep目录中
+
+* Go管理工具 - glide
+** 安装
+go get github.com/Masterminds/glide
+go install github.com/Masterminds/glide
+
+** 使用
+1. 在GOPATH指定的某个路径中的src目录中新建一个目录
+   注意: 新建的该目录就可以当做一个项目工程的根目录
+2. 在该目录中执行命令
+   glide init
+   glide install
+   glide get --all-dependencies -s -v <codeurl>#tag
+   
+   --all-dependencies # 下载全部依赖
+   -s  # 下载后删除.git目录
+   -v  # 移除Godeps/_workspace等相关目录
+
+   glide up  # 更新依赖
+
+   go test $(go novendor)  # 运行测试, 但是不执行vendor目录中的测试
+
+* Go语言学习路径
+1. 通读go语言圣经
+2. 阅读算法, 里边的所有的算法都用go实现一遍
+3. 使用go编写一个博客系统
+4. 阅读一个go编写的框架, 如gin框架
+* Go经典问题
+** 字典遍历
+#+BEGIN_SRC go
+type student struct {
+	Name string
+	Age  int
+}
+
+func pase_student() map[string]*student {
+	m := make(map[string]*student)
+	stus := []student{
+		{Name: "zhou", Age: 24},
+		{Name: "li", Age: 23},
+		{Name: "wang", Age: 22},
+	}
+
+    for _, stu := rage stus {
+        m[stu.Name] = &stu
+    }
+
+    /*
+    // 正确写法
+	for i, _ := range stus {
+		stu := stus[i]
+		m[stu.Name] = &stu
+	}
+    */
+	return m
+}
+func main() {
+	students := pase_student()
+	for k, v := range students {
+		fmt.Printf("key=%s,value=%v \n", k, v)
+	}
+}
+#+END_SRC
