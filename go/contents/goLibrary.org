@@ -249,3 +249,146 @@ b, err := ioutil.ReadAll(resp.Body)
 nBytes, err := io.Copy(ioutil.Discard, resp.Body)  // 计算获取的字节数
 resp.Body.Close()
 #+END_SRC
+* container/list包
+** 简介
+该包包含了两个公开的程序实体, List和Element. List是一个双向链表, Element代表了链表中元素的结构
+
+** 使用
+常用方法:
+Front, Back, InsertBefore, InsertAfter, PushFront, PushBack, Next, New, Remove
+#+BEGIN_SRC go
+// var l list.List  // 声明的变量l是一个"零值", 该零值是一个长度为0的链表, 链表的根元素是一个空壳
+// 其中会包含缺省的内容, 这个链表可以直接拿来使用, 这被称为开箱即用.
+// go标准库中的很多结构体类型都做到了开箱即用.
+
+import (
+	"container/list"
+	"fmt"
+	"strconv"
+)
+type Student struct {
+	Age  int
+	Name string
+}
+
+func main() {
+	var l list.List  // 等价于: l := list.New()
+	for i := 0; i < 5; i++ {
+		s := Student{i, "Casper" + strconv.Itoa(i)}
+		l.PushBack(s)
+	}
+
+	for e := l.Front(); e != nil; e = e.Next() {
+		v, ok := e.Value.(Student)  // 断言
+		if !ok {
+			fmt.Println("e.Value not Student Type")
+			return
+		}
+		fmt.Println(v.Age, v.Name)
+	}
+
+    var n *list.Element
+    // 删除链表中的元素
+	for e := l.Front(); e != nil; e = n {
+		n = e.Next()
+		l.Remove(e)
+	}
+
+    l2 := list.New()
+    l2.PushBack(1)
+    l2.PushBack("Casper")  // 可以插入不同的类型
+}
+
+#+END_SRC
+* container/ring包
+** 介绍
+Ring类型实现的是一个循环链表, 其实List在内部就是一个循环链表, 它的根元素永远不会持有任何实际的
+元素值, 而该元素的存在, 就是为了连接这个循环链表的首尾两端.
+
+Ring和List的不同如下:
+1. Ring类型的数据结构仅由它自身即可代表, List类型需要由它以及Element类型联合表示.
+2. 一个Ring类型的值严格来讲只代表了其所属的循环链表中的一个元素, 而一个List类型的值
+   则代表了一个完整的链表
+3. 在创建并初始化一个Ring值的时候, 可以它包含的元素的数量, List却不能这么做也没必要这么做
+   循环链表一旦创建, 其长度就是固定的
+4. 通过var r ring.Ring声明的r将会是一个长度为1的循环链表, var l list.List是一个长度为0的链表.
+5. Ring的Len方法的算法复杂度是O(N), List的Len的复杂度是O(1)
+
+** 使用
+#+BEGIN_SRC go
+func main() {
+	var rlen = 5
+	r1 := ring.New(rlen)
+    // 只初始化4个元素的值
+	for i := 0; i < rlen-1; i++ {
+		r1.Value = i
+		r1 = r1.Next()
+	}
+
+	printRing := func(v interface{}) {
+		fmt.Print(v, " ")
+	}
+	// Do方法, 对Ring中的每个元素执行传入的函数
+	//r1.Do(printRing)  // <nil> 0 1 2 3
+
+	// Move方法循环移动元素的个数
+	r2 := r1.Move(3) // r2: 2 3 <nil> 0 1
+
+	// 修改第三个元素的值, 索引从0开始, r1的值还是<nil> 0 1 2 3
+	r1.Move(2).Value = r1.Move(2).Value.(int) * 2
+
+	// 删除元素, r1指向<nil>, r2: 指向2, r1中<nil>和2之间的元素是0 1, 因此result=[0, 1]
+	// r1的值变为<nil> 2 3
+	_ = r1.Link(r2)
+
+	r3 := ring.New(2)
+	r3.Value = 33
+	r3.Next().Value = 37
+
+	// 插入r3到r1后面, 返回插入前r1的下一个元素
+	r4 := r1.Link(r3)
+
+	// Unlink删除r4之后的3个元素, 返回被删除元素组成的Ring指针
+	result := r4.Unlink(3)
+	result.Do(printRing)
+}
+#+END_SRC
+
+** 约瑟夫环
+有N个人玩游戏, 从第一个1开始报数, 当报到3时, 此人退出游戏, 然后接着从1开始报数, 输出退出游戏的
+次序.
+#+BEGIN_SRC go
+func main() {
+	const (
+		playerCount = 7 // 玩家人数
+		startPos    = 1 // 开始报数的位置
+		quitLine    = 3 // 数到第几个数出局
+	)
+
+	r := ring.New(playerCount)
+	for i := 0; i < playerCount; i++ {
+		r.Value = &Person{alive: true, position: i + 1}
+		r = r.Next()
+	}
+	if startPos > 1 { // 如果不是从第一个人开始报数, 则需要移动一下循环链表
+		r = r.Move(startPos - 1)
+	}
+
+	counter := 0
+	quitCounter := 0
+	for quitCounter < playerCount {
+		if r.Value.(*Person).alive {
+			counter++
+		}
+
+		if counter == quitLine {
+			fmt.Print(counter)
+			r.Value.(*Person).alive = false
+			fmt.Printf(" Player %d is quit\n", r.Value.(*Person).position)
+			quitCounter++
+			counter = 0
+		}
+		r = r.Next()
+	}
+}
+#+END_SRC

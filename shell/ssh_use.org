@@ -142,6 +142,9 @@ ssh-agent服务也就重置了.
    将PermitRootLogin without-password注释
    添加新内容: PermitRootLogin yes
    然后重启ssh服务即可, service ssh restart
+* ssh连接Ubuntu提示Your environment specifies an invalid locale
+解决方法:
+sudo locale-gen zh_CN.UTF-8
 
 * ssh 连接centos慢
 修改服务器上的/etc/ssh/sshd_config

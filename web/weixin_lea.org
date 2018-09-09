@@ -135,3 +135,100 @@ class QYWXServerBind(tornado.web.RequestHandler):
             log.info("trace: {}".format(traceback.format_exc()))   
    #+END_SRC
 8. 回到最开始设置API的页面, 点击保存即可, 如果提示"URL验证失败", 可以慢慢调试.
+** 企业微信服务商
+需要申请为企业微信服务商.
+
+然后在"标准应用服务"标签页中创建应用 -> "网页应用" -> 创建应用, 注意在配置的时候, 数据回调URL的
+格式类似于: http://domain/<callback>?corpid=$CORPID$
+
+数据回调和指令回调使用的解码方法一致. 在验证URL时会发送GET请求, 验证代码如下:
+[[file:content/WXBizMsgCrypt.py][WXBizMsgCrypt.py]]
+
+#+BEGIN_SRC python
+import WXBizMsgCrypt
+
+class QYWXBack(tornado.web.RequestHandler):
+    def get(self):
+        try:
+            sVerifyMsgSig = self.get_argument("msg_signature")
+            sVerifyTimeStamp = self.get_argument("timestamp")
+            sVerifyNonce = self.get_argument("nonce")
+            sVerifyEchoStr = self.get_argument("echostr")
+            # 企业微信服务号
+            sToken = "CogFOOeTBcBXz951afjQrctQsBABE"
+            sEncodingAESKey = "4OXLQci86J2XdBkn4KxdfqKPrXg1lLwRIkbQyybsh14"
+            sCorpID = "ww0ff7a560a471cee8"
+
+            wxcpt = WXBizMsgCrypt(sToken, sEncodingAESKey, sCorpID)
+            ret, hashCode = wxcpt.VerifyURL(sVerifyMsgSig, sVerifyTimeStamp, sVerifyNonce, sVerifyEchoStr)
+
+
+            log.info("ret={}, hashCode:{}, msgCode:{}, echostr={}".format(
+                ret, hashCode, sVerifyMsgSig, sVerifyEchoStr))
+
+            if ret == 0:
+                # 验证成功后, 返回hashCode
+                self.write(hashCode)
+            else:
+                self.write("")
+        except Exception:
+            log.info("trace: {}".format(traceback.format_exc()))
+    
+#+END_SRC
+
+验证通过之后, 在数据回调和命令回调时使用POST方法.
+
+** 在企业微信服务商账号中开发
+在其他企业微信安装这个应用之后, 企业微信为提交POST请求到服务器, 处理代码如下:
+#+BEGIN_SRC python
+class QYWXCmdBack(tornado.web.RequestHandler):
+    def post(self):  # 安装应用回调
+        """
+        回调POST数据是: 
+        <xml>
+            <SuiteId><![CDATA[wxfc918a2d200c9a4c]]></SuiteId>
+            <AuthCode><![CDATA[AUTHCODE]]></AuthCode>
+            <InfoType><![CDATA[create_auth]]></InfoType>
+            <TimeStamp>1403610513</TimeStamp>
+        </xml>	
+        """
+        try:
+            global suiteAccessToken
+            sReqMsgSig = self.get_argument("msg_signature")
+            sReqData = self.request.body
+            sReqTimeStamp = self.get_argument("timestamp")
+            sReqNonce = self.get_argument("nonce")
+
+            sToken = "CogFOOeTBcBXz951afjQrctQsBABE"
+            sEncodingAESKey = "4OXLQci86J2XdBkn4KxdfqKPrXg1lLwRIkbQyybsh14"
+            sCorpID = "ww816984a2bf073e4d" # suitid, 企业微信服务商的
+
+            wxcpt = WXBizMsgCrypt(sToken, sEncodingAESKey, sCorpID)
+            ret, sMsg = wxcpt.DecryptMsg(sReqData, sReqMsgSig, sReqTimeStamp, sReqNonce)
+            log.info("ret={}, msg={}".format(ret, sMsg))
+            xmlTree = ET.fromstring(sMsg)
+            log.info("xmlTree:{}, xmlData:{}".format(dir(xmlTree), xmlTree))
+            infoType = xmlTree.find("InfoType").text
+            if infoType == "create_auth":  # 安装应用
+                log.info("Global suitAccessToken:{}".format(suiteAccessToken))
+                url = "https://qyapi.weixin.qq.com/cgi-bin/service/get_permanent_code?suite_access_token={}"
+                data = {
+                    "auth_code": xmlTree.find("AuthCode").text
+                }
+                req = requests.post(url.format(suiteAccessToken), json.dumps(data))
+                jsonData = req.json()
+                log.info("CreateAuth:{}".format(jsonData))
+
+            elif infoType == "suite_ticket":
+                suiteTicket = xmlTree.find("SuiteTicket").text
+                suiteAccessToken = self.getSuitAcessCode(suiteTicket)
+
+            self.write("success")
+        except Exception:
+            log.info("TraceBack:{}".format(traceback.format_exc()))
+            self.write("")
+
+#+END_SRC
+
+* 企业微信接口
+http://open.weixin.qq.com/connect/oauth2/authorize?appid=$CORPID$&redirect_uri=http://qy.aibaodata.com/homeback&response_type=code&scope=snsapi_userinfo&agentid=$AGENTID$&state=1#wechat_redirect

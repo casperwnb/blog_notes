@@ -1,0 +1,17 @@
+* Django数据库
+** 访问优化
+[[https://docs.djangoproject.com/en/2.1/topics/db/optimization/][访问优化]]
+
+** QuerySet
+#+BEGIN_SRC python 使用QuerySet.extra显示的执行SQL语句
+cl = <Model>.objects.filter(parent__id=1).extra(
+    select={
+        'another_news_count': 'SELECT COUNT(*) FROM web_news WHERE \
+         web_news.channel_id = web_channel.id'
+    }
+)
+print cl[0].another_news_count
+
+# 使用原生的sql
+cl = <Model>.objects.raw("select * from xxx")
+#+END_SRC

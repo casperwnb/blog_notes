@@ -1,0 +1,65 @@
+* Django Template
+** DTL
+django template languate, django内置的模板, 用于支持自身的模板引擎.
+django1.8+还支持jinja2.
+
+** django模板系统的基本方式
+1. 以字符串的形式提供原始的模板代码, 创建Template对象
+2. 在 Template 对象上调用 render() 方法, 传入一系列变量(上下文).
+   返回的是完全渲染模板后得到的字符串, 模板中的变量和模板标签已经根据上下文求出值了.
+   #+BEGIN_SRC python
+from django.template import Template, Context
+t = Template('My name is {{ name }}. Item 2 is {{items.1}}')  # 访问items的第三个元素
+# 不允许使用负数索引
+c = Context({'name': 'Nige', "items":["apple", "banana"]})
+print (t.render(c))
+   #+END_SRC
+
+模板系统遇到变量名中的点号时会按照下述顺序尝试查找:
+1. 字典查找 foo["bar"]
+2. 属性查找 foo.bar
+3. 方法调用 foo.bar()
+4. 列表索引 foo.2
+
+模板系统将使用第一个可用的类型, 这是一种短路逻辑. 点号查找可以嵌套多层
+
+如果变量不存在, 模板系统在变量处插入引擎的string_if_invalid配置的默认选项值.
+
+** 模板中的方法调用行为
+1. 在方法查找过程中, 如果方法跑出异常, 异常会向上冒泡, 除非异常有silent_variable_failure,且
+   值为True, 如果确实有silent_variable_failure属性, 使用引擎的string_if_invalid配置选项(默认
+   为一个空字符串)渲染变量
+   #+BEGIN_SRC python
+class SilentAssertionError(Exception):
+    silent_variable_failure = True
+
+class PersonClass(object):
+    def first_name(self):
+        raise SilentAssertionError
+
+p = PersonClass()
+t = Template("my name is {{person.first_name}}")
+t.render(Context({"person": p}))
+   #+END_SRC
+2. 方法不能有必须参数, 否则模板系统向右移动到下一种查询类型
+3. django限制了在模板中可以处理的逻辑量, 因此在模板中不能给方法传递参数, 数据应该在视图中计算之后
+   在传给目标显示
+4. 有些方法有副作用, 如果允许模板系统访问这样的方法, 还可能埋下安全 漏洞
+5. 假如有个BankAccount对象, 有个delete方法, 如果模板中有{{account.delete}},
+   其中account为BankAccount对象, 那么渲染模板时会把account删除, 为了避免这种行为, 在方法
+   上设定函数属性alters_data, 如:
+   #+BEGIN_SRC python
+class BankAccount(object):
+    def delete(self):
+        print("Delete")
+
+    delete.alters_data = True  # 设为False后, 页面渲染出来的值为None
+   #+END_SRC
+   这样模板系统就不会执行方法, 引擎会使用string_if_invalid的值替换那个变量.
+
+** 基本的模板标签和过滤器
+if/else: {% if %} {% else %} {% endif %}  {% else %}是可选的, 还可以有{% elif %}
+{% if %}中还可以使用and, or, not等, {% if %}中使用括号是无效的语法. 如果需要通过括号
+指明优先级, 应该使用嵌套的if标签.
+
+

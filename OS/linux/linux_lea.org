@@ -20,3 +20,5 @@ lsattr: 用于读取文件或目录的特殊权限
 [[https://mp.weixin.qq.com/s/5Tj7UVdHLJw-opQEGjY64A][web参考链接]]
 
 * Ubuntu
+* CGroup
+https://mp.weixin.qq.com/s/nvXWx0Qy5Ead-I7rOjPb5Q

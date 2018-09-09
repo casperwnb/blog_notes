@@ -456,3 +456,60 @@ def GetContent(msg, indent=0):
 * Python codesnippet
 [[file:codesnippet/readexcel.py][excel读取]]
 * Python 项目实战
+* 实现页面消息推送
+** Server-Sent Events技术
+Server-Sent Events(SSE) 是一种可以完成从服务器到客户端(浏览器)单向的消息传送. 可以使用这个来
+做推送. IE并不支持该技术, 可以通过EventSource.js来实现兼容.
+
+#+BEGIN_SRC html
+<html>
+<head>
+    <title>EventSource-Dango-Demo Casper</title>
+    <script src="https://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <script>
+        var source = new EventSource("/eventsource/");
+        source.onmessage = function (event) {
+            document.getElementById("result").innerHTML += event.data + "<br />";
+        };
+        source.addEventListener("date", function(e) {  // 添加事件处理
+            document.getElementById("result").innerHTML += event.data + "<br />";
+        });
+    </script>
+</head>
+
+<body>
+    <div id="result">
+    </div>
+</body>
+</html>
+#+END_SRC
+页面加载时, 会初始化一个EventSrouce监听在/eventsource/这个URI上,
+然后设置souce对象收到消息之后的处理逻辑.
+#+BEGIN_SRC python 服务端代码
+import time
+from django.http import StreamingHttpResponse
+from django.utils.timezone import now
+
+def eventsource(request):
+    time.sleep(10)
+    # StreamingHttpResponse是一个流式的response, 其内容参数需要一个生成器
+    response = StreamingHttpResponse(stream_generator(), content_type="text/event-stream")
+    response['Cache-Control'] = 'no-cache'
+    return response
+
+def stream_generator():
+    while True:
+        # 发送事件数据, 前端对应的处理方式和简单的message不同, 见html代码
+        # 可以同时发送, 还可以发送不同的事件
+        # yield 'event: date\ndata: %s\n\n' % str(now())
+
+        # 发送数据
+        yield u'data: %s\n\n' % str(now())
+        time.sleep(4)
+#+END_SRC
+
+url配置:
+url(r'^eventsource/$', eventsource),
+url(r'^es/$', TemplateView.as_view(template_name="eventsource.html")),
+* Python 虚拟环境搭建
+[[file:contents/python_environment.org][python虚拟环境搭建]]

@@ -1,0 +1,264 @@
+* 包管理和虚拟环境
+第三方包主要分布在The Python Package Index(https://pypi.python.org/pypi)官方的仓库
+
+* Pip
+** pip安装
+pip 已经内置到python2.7.9和python3.4及以上版本pip支持二进制包使用wheel格式(后缀是: .whl)
+可以集中管理项目依赖列表, 文件名一般叫做requirements.txt
+
+apt-get install python-pip  # Ubuntu安装pip
+pip install -U pip  # 更新pip
+pip install --user packagename  # 将packagename安装到用户的空间中.
+
+yum install python-pip  # Centos安装
+
+** pip 设置
+使用较新版本的pip如果不配置pip.conf, 会有一个提示信息, 配置如下:
+创建文件 ~/.pip/pip.conf, 内容如下:
+#+BEGIN_SRC text
+  [list]
+  #format=columns
+  #format=legacy
+  format=freeze
+#+END_SRC
+
+** pip高级用法
+pip支持自动补全功能, 对于zsh用户非常友好. 安装方法如下(需要在有pip命令时执行):
+pip completion --zsh >> ~/.zprofile && source ~/.zprofile
+
+如果使用bash, 则执行: pip completion --bash >> ~/.profile
+
+如果不是root用户, 或没有root权限也不在虚拟环境中, 此时可以使用
+pip install django --user 则会将包安装在当前用户的.local目录下, 不能在虚拟环境中使用--user,
+只能在退出虚拟环境时才可以使用.
+
+可以使用pip show django | grep -i location 来查看安装目录
+
+编辑模式: pip install -e .
+会将开发目录作为包的路径, 这样可以进行实时修改.
+
+pip install -i douban_url tornado: 从豆瓣的服务器上下载tornado进行安装
+等效的写法是可以将douban_url写入配置文件中, ~/.config/pip/pip.conf, 内容是
+#+BEGIN_SRC text
+[global]
+index-url = http://xxx
+#+END_SRC
+
+** 使用devpi作为缓存代理服务器
+pip install devpi-server
+
+启动: devpi-server --host=0.0.0.0 --start, 默认的端口是3141, 如果启动不成功,可以根据提示加上
+--init, 此时就可以使用 pip install -i http://localhost:3141/root/pypi tornado 进行安装了
+
+如果希望有一个web界面, 则安装 pip install -U devpi-web
+重启devpi-server, devpi-server --host-0.0.0.0 --stop, devpi-server --host=0.0.0.0 --start
+就可以通过http://localhost:3141 访问web页面了
+
+** pypi完全镜像
+bandersnatch(https://bitbucket.org/pypa/bandersnatch)是PyPA组织根据PEP 381实现的镜像客户端.
+安装方法: pip install -r https://bitbucket.org/pypa/bandersnatch/raw/stable/requirements.txt
+pip install zc.buildout
+apt-get install mercuial -yq: 安装hg命令
+hg clone https://bitbucket.org/pypa/bnadersnatch ~/bandersnatch
+cd ~/bandersnatch && buildout
+
+默认没有创建bandersnatch.conf配置文件, 假如不使用"-c", 默认是/etc/bandersnatch.conf.
+先启动以创建配置文件: bandersnatch -c bandersnatch.conf mirror
+然后更新direcotry配置项, 修改directory选项的值为/data/pypi, 该目录就是存放包的根目录.
+修改完成后再次启动, bandersnatch -c bandersnatch.conf mirror, 此时就开始同步了.
+注意: PYPI上所有的包加起来有几百G, 需要合理安排硬盘资源.
+
+* Pyenv虚拟环境
+虚拟环境可以使用pyenv来进行搭建. 该软件是一个python多版本管理工具, 可以通过插件与virtualenv
+完美结合, 实现多版本, 多环境的控制.
+
+** 安装pyenv
++ mac 安装
+  brew install pyenv
+  更新: brew upgrade
+  使用homebrew安装的pyenv 不会安装插件
+
++ 其他安装
+  [[https://github.com/pyenv/pyenv#installation][安装连接]], [[https://github.com/pyenv/pyenv-installer][自动安装脚本]]
+
+  curl -L https://raw.githubusercontent.com/yyuu/pyenv-installer/master/bin/pyenv-installer | bash
+  使用pyenv-installer安装的pyenv会自动安装几个有用的插件.
+  pyenv-virtualenv: 用于整合 virtualenv
+  pyenv-pip-rehash: 用于使用 pip 安装包之后自动执行rehash
+  pyenv-update: 用于升级 pyenv
+
+  如果使用如下的方式安装, 则只会安装基本的pyenv:
+  git clone git://github.com/yyuu/pyenv.git ~/.pyenv
+  添加环境变量:
+  #+BEGIN_SRC shell
+  echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+  echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+  echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+  #+END_SRC
+
++ 设置配置文件, 在.bashrc, .zshrc中添加内容如下
+  安装路径的设置: 默认在~/.pyenv/versions目录下
+  如果需要设置在不同的路径, 则添加如下语句:
+  #+BEGIN_SRC text
+  export PYENV_ROOT="${HOME}/.pyenv"
+
+  if [ -d "${PYENV_ROOT}" ]; then
+    export PATH="${PYENV_ROOT}/bin:${PATH}"
+    eval "$(pyenv init -)"
+  fi
+  #+END_SRC
+
+  如果使用默认路径, 则添加如下语句:
+  #+BEGIN_SRC text
+  if which pyenv > /dev/null; then eval "$(pyenv init -)"; fi
+  #+END_SRC
+
+  添加: export PIP_REQUIRE_VIRTUALENV=true
+  表示必须在某个虚拟环境中才能安装包, 这样可以避免在全局环境中安装.
+  
+  也可以通过在$HOME/.pip/pip.conf文件中添加如下内容:
+  [global]
+  require-virtualenv = true
+  download-cache = $HOME/.pip/cache  # 保存已经下载的包
+
+  如果需要在全局范围内安装, 可以在shell的配置文件中添加如下内容:
+  #+BEGIN_SRC shell
+  gpip() {
+    PIP_REQUIRE_VIRTUALENV="" pip "$@"
+  }
+  #+END_SRC
+  即定义一个函数, 调用该函数即可, 如: gpip install, 该函数会将所用参数传递给pip,
+  因此其用法与pip一致.
+
+** 使用pyenv
+[[https://github.com/yyuu/pyenv/wiki/Common-build-problems][使用参考]]
+
+pyenv update: 更新pyenv
+
+pyenv安装python需要编译python, 所以需要有编译python的依赖.一般需要如下依赖:
+gcc, gcc-c++, make, patch, openssl-devel, zlib-devel, readline-devel, 
+sqlite-devel, bzip2-devel
+
+ubuntu安装依赖: apt-get install cmake zlib1g-dev libreadline6-dev make \
+  build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+  libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev xz-utils \
+  python-dev
+
+centos安装依赖: yum install readline readline-devel readline-static \
+  openssl openssl-devel openssl-static sqlite-devel bzip2-devel bzip2-libs\
+  git gcc-c++ gcc libzip-devel zlib-devel ncurses-devel make python-devel \
+  patch
+
+pyenv install python-version(2.7.12): 安装python2.7.12
+pyenv install -l: 列出可安装的python版本
+
+pyenv下载安装python如果非常慢时, 可以先执行pyenv install xx, 然后到~/.pyenv/cache
+目录下查看需要下载的文件名, 然后手动下载, 之后将下载好的文件放到~/.pyenv/cache目录下.
+然后重新执行安装命令, pyenv会检查文件的完整性, 确认无误后进行安装.
+
+pyenv versions: 列出已经安装的python以及当前使用的版本, *表示当前版本, 括号内的内容描述了是如何处理设置的
+
+global 用于切换全局 python 环境, local 用于切换局部环境.
+pyenv [local | global] 2.7.12,local 命令会在当前目录建立一个文件.pyenv-version,文件内容是 2.7.12,
+pyenv 通过这种方式标记当前目录使用的 python 版本, 如果其子目录下没有.pyenv-version 则此版本会继承到子目录.
+global 命令会修改$PYENV_HOME/version文件的内容, 标记全局 python 版本.
+当一个目录或其父目录没有.pyenv-version 文件的时候, 会使用全局版本.
+
+一般的,不建议修改全局版本,而使用期默认值 system,因为在 unix 系统上, 很多系统工具依赖于 Python,
+如果修改了 Python 的版本,可能会造成绝大多数的依赖 Python 的系统工具无法使用,
+如果不小心修改了,使用 global 命令修改回来.
+有时候,发现部分系统工具无法使用,也可以看看当前的 Python 版本.
+
+pyenv uninstall 2.7.12: 卸载python2.7.12
+
+** pyenv使用时遇到的一些问题
+1. 在执行pyenv install <python-version>时报patch: command not found
+   解决方法: yum install patch
+
+** pyenv插件安装
+cd $PYENV_ROOT/plugins
+之后将该插件clone到该目录下即可,
+例如: 安装virtualenv
+git clone https://github.com/yyuu/pyenv-virtualenv.git ~/.pyenv/plugins/pyenv-virtualenv
+
+如果使用的是homebrew安装的pyenv, 则可以使用 brew install pyenv-virtualenv进行安装,
+此时如果需要自动激活virtualenv, 则修改配置文件:
+if which pyenv-virtualenv-init > /dev/null; then eval "$(pyenv virtualenv-init -)"; fi
+
+** pyenv virtual使用
+通过virtualenv命令创建虚拟环境
+pyenv virtualenv [-f|--force] [VIRTUALENV_OPTIONS] [version] <virtualenv-name>
+-f 强制,如果存在该虚拟环境,将会覆盖该虚拟环境. -u 升级, 
+VIRTUALENV_OPTIONS 是用于传递给 virtualenv 的选项.
+version: python 版本, virtualenv-name: 虚拟环境的名称
+pyenv uninstall virtualenv-name: 删除指定的虚拟环境
+
+例如:
+pyenv virtualenv 2.7.5 my_project, 创建了一个基于 2.7.5 的名为 my_project 的虚拟环境,
+会在目录~/.pyenv/versions/和~/.pyenv/versions/python-version/envs目录中同时生成以虚拟环境命名的目录.
+删除时可以使用命令删除, 也可以手动删除这两个目录下的文件. versions目录下的虚拟环境目录其实是一个软连接.
+
+pyenv uninstall my_project, 删除my_project虚拟环境
+
+pyenv virtualenvs: 列出所有已经创建的虚拟环境.
+pyenv rehash: 更新数据库, 一般在安装完成之后执行
+pyenv shell my_project: 进入my_project
+pyenv activate my_project: 进入my_project
+pyenv deactive my_project: 退出my_project虚拟环境
+
+** 问题解决
+1. 出现"zipimport.ZipImportError: can't decompress data; zlib not available"
+   解决: 执行xcode-select --install, 然后在重新安装
+
+* virtualenv
+** virtualenv
+#+BEGIN_SRC text
+# centos 安装python
+yum install epel-release
+yum search python3 | grep devel
+yum -y install python34-devel.x86_64
+curl https://bootstrap.pypa.io/get-pip.py | python3.4
+pip3 install virtualenv
+
+virtualenv -p /usr/local/python3/bin/python3 venv
+
+#启动虚拟环境
+source venv/bin/activate
+
+#退出虚拟环境
+deactivate
+#+END_SRC
+
+pip install virtualenv  # 安装
+virtualenv -p <python_bin> <virtualname>
+
+source <virtualname>/bin/activate  # 激活
+
+** virtualenvwrapper
+对virtualenv进行了一层封装, 使用更加方便
+pip install virtualenvwrapper
+修改shell的配置文件, 添加内容: source /usr/local/bin/virtualenvwrapper.sh
+
+创建虚拟环境: mkvirtualenv xxx
+进入虚拟环境: workon xx
+
+** 其他的辅助工具
+pip install virtualenv virtualenvwrapper
+
+virtualenv-burrito是一个安装配置virtualenv和virtualenvwrapper及其依赖的工具.
+curl -sL \
+https://raw.githubusercontent.com/brainsik/virtualenv-burrito/master/virtualenv-burrito.sh |\
+ $SHELL
+
+会自动将初始化脚本放在~/.zprofile里, 如果想立即使用, 则执行source ~/.venvburrito/startup.sh
+startup.sh会自动创建~/.virtualenvs作为WORKON_HOME.用法同virtualenvwrapper.
+virtualenv-burrito upgrade对virtualenv和virtualenvwrapper进行更新
+
+autoenv: 在切换目录时可以完成自动激活虚拟环境.
+pip install autoenv, 之后执行: source /usr/local/bin/activate.sh
+
+然后在需要切换的目录中建立.env文件, 添加内容为:
+source /home/ubuntu/.virtualenvs/venv/bin/activate.sh
+注意: 激活环境一定要使用绝对路径, 否则在执行cd xx/xx之类的命令时会让虚拟环境激活失败
+
+

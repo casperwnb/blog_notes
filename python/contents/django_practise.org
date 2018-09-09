@@ -1,5 +1,7 @@
 * 创建项目
-django-admin.py startproject <pro_name>  # 创建项目, 以pro_name为项目的根目录
+django-admin.py startproject <pro_name>  # 创建项目, 以pro_name为项目的根目录, 等价于
+django-admin startproject <pro_name>
+
 django-admin.py startproject <pro_name> .  # 注意最后的".", 会以当前目录为项目的根目录
 
 * 创建数据库
@@ -45,6 +47,7 @@ python manage.py loaddata backup.json  # 数据导入
 1. 使用七牛云, 进行相关的配置
 2. django在处理图片上传时的逻辑如下
    #+BEGIN_SRC python
+# Model
 class ProjectImage(models.Model):
     description = models.CharField(max_length=64, verbose_name="描述")
     image = models.ImageField(upload_to=settings.IMAGE_PATH + '%Y/%m/%d', verbose_name="图片")
@@ -58,12 +61,13 @@ class ProjectImage(models.Model):
     def __str__(self):
         return self.description
 
+# Form
 class ProjectImageForm(forms.ModelForm):
     class Meta:
         model = ProjectImage
         exclude = ['url', 'cdnurl']  # 界面上不显示的字段
 
-
+# Admin
 class ProjectImageAdmin(admin.ModelAdmin):
     icon = '<i class="material-icons">extension</i>'
 
@@ -84,6 +88,7 @@ class ProjectImageAdmin(admin.ModelAdmin):
     img.allow_tags = True
 
    #+END_SRC
+
 3. 七牛云的一种工作原理
    当使用CDN链接来访问该图片时, 如果是第一次访问该图片, 由于七牛云上没有该内容, 因此会去服务器上
    拉取数据, 然后就会存储在七牛云的CDN上, 下次访问就从CDN上访问了.
@@ -102,3 +107,679 @@ server {
     }
 }
    #+END_SRC
+* WSGI
+** 简介
+WSGI协议分两部分, 其中一部分是Web Server或者Gateway, 监听在某个端口上, 接受外部的请求.
+另一部分是Web Application, Web Server接受到请求之后会通过WSGI协议规定的方式把数据传递给
+Web Application, 在Web Application中处理完之后, 设置对应的状态和HEADER, 之后返回body部分.
+Web Server拿到返回数据之后, 再进行HTTP协议的封装, 最终返回完整的HTTP Response数据.
+
+** socket返回HTTP响应
+#+BEGIN_SRC python
+#encoding: utf-8
+
+import socket
+import traceback
+
+EOL1 = "\n\n"
+EOL2 = "\n\r\n"
+
+body = """Hello, Casper <h1>Socket HTTP 响应</h1>"""
+if not isinstance(body, unicode):
+    body = body.decode("utf-8")  # 此处的decode使用的编码需要和保存文件的编码一致
+
+useGbk = False
+if useGbk:
+    body = body.encode("gb2312")
+    responseParams = [
+        "HTTP/1.1 200 OK",
+        "Date: Sat, 10 jun 2018 01:01:01 GMT",
+        "Content-type: text/html; charset=gb2312",  # 如果返回的是text/plain, 则会显示为文本
+        # 如果没有Content-Length, 浏览器无法显示内容, 如果没有Content-Type, 则默认当做文本处理
+        # 大小写都可以
+        "Content-length: {}\r\n".format(len(body)),
+        body,
+    ]
+else:
+    body = body.encode("utf-8")
+    responseParams = [
+        "HTTP/1.1 200 OK",
+        "Date: Sat, 10 jun 2018 01:01:01 GMT",
+        "Content-type: text/html; charset=utf-8",
+        "Content-length: {}\r\n".format(len(body)),
+        body,
+    ]
+
+response = "\r\n".join(responseParams)
+
+def HandleConnection(conn, addr):
+    request = ""
+    while EOL1 not in request and EOL2 not in request:
+        request += conn.recv(1024)
+    print("Get:{}".format(request))
+    conn.send(response)
+    conn.close()
+
+def main():
+    host = "127.0.0.1"
+    port = 9999
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((host, port))
+    server.listen(5)
+
+    print("Run at http://{}:{}".format(host, port))
+    try:
+        while 1:
+            conn, addr = server.accept()
+            HandleConnection(conn, addr)
+    except Exception:
+        print(traceback.format_exc())
+    finally:
+        server.close()
+
+if '__main__' == __name__:
+    main()
+
+#+END_SRC
+
+** 简单的WSGI Application
+#+BEGIN_SRC python 一个简单的Application
+# filename: app.py
+def SimpleApp(environ, startResponse):
+    status = '200 OK'
+    response_headers = [('content-type', 'text/plain')]
+    startResponse(status, response_headers)
+
+    # 此处返回的数据会当做响应中的body内容
+    return ['Hello world<h1>中文响应</h1>!']
+#+END_SRC
+
+此时就可以使用gunicorn来运行该Application.
+pip install gunicorn
+
+gunicorn app:SimpleApp
+
+** 自定义的Web Server
+#+BEGIN_SRC python
+# encoding: utf-8
+
+import os
+import sys
+
+from app import SimpleApp
+
+def run_with_cgi(application):
+    environ = dict(os.environ.items())
+    environ['wsgi.input'] = sys.stdin
+    environ['wsgi.errors'] = sys.stderr
+    environ['wsgi.version'] = (1, 0, 0)
+    environ['wsgi.multithread'] = False
+    environ['wsgi.multiprocess'] = True
+    environ['wsgi.run_once'] = True
+
+    if environ.get('HTTPS', 'off') in ('on', '1'):
+        environ['wsgi.url_scheme'] = 'https'
+    else:
+        environ['wsgi.url_scheme'] = 'http'
+
+    headers_set = []
+    headers_sent = []
+
+    def write(data):
+        if not headers_set:
+            raise AssertionError("write() before start_response()")
+
+        elif not headers_sent:
+            # Before the first output, send the stored headers
+            status, response_headers = headers_sent[:] = headers_set
+            sys.stdout.write('Status: %s\r\n' % status)
+            for header in response_headers:
+                sys.stdout.write('%s: %s\r\n' % header)
+            sys.stdout.write('\r\n')
+
+        sys.stdout.write(data)
+        sys.stdout.flush()
+
+    def start_response(status, response_headers, exc_info=None):
+        if exc_info:
+            try:
+                if headers_sent:
+                    # Re-raise original exception if headers sent
+                    raise exc_info[0], exc_info[1], exc_info[2]
+            finally:
+                exc_info = None     # avoid dangling circular ref
+        elif headers_set:
+            raise AssertionError("Headers already set!")
+
+        headers_set[:] = [status, response_headers]
+        return write
+
+    result = application(environ, start_response)
+    try:
+        for data in result:
+            if data:    # don't send headers until body appears
+                write(data)
+        if not headers_sent:
+            write('')   # send headers now if body was empty
+    finally:
+        if hasattr(result, 'close'):
+            result.close()
+
+#application = AppClass()
+
+if __name__ == '__main__':
+    run_with_cgi(SimpleApp)
+#+END_SRC
+** 理解WSGI
+通过以上代码可以了解简单的application中对WSGI协议的实现, 可以在SimpleApp方法中增加print语句来
+查看参数分别是什么.
+
+WSGI协议规定, application必须是一个callable对象, 这意味着是一个python中的函数或者是一个实现了
+__call__方法的类. 例如:
+#+BEGIN_SRC python
+class AppClass(object):
+    status = "200 OK"
+    response_headers = [("Content-Type", "text/plain")]
+    
+    def __call__(self, environ, startResponse):
+        startResponse(status, response_headers)
+        return ["Hello App"]
+
+application = AppClass()
+#+END_SRC
+此时使用gunicorn app:application也能运行.
+
+另一种实现方式:
+#+BEGIN_SRC python
+class AppClassIter(object):
+    status = "200 OK"
+    response_headers = [("Content-Type", "text/plain")]
+    
+    def __init__(self, environ, startResponse):
+        self.environ = environ
+        self.startResponse = startResponse
+    def __iter__(self):
+        self.startResponse(status, response_headers)
+        yield 'Hello AppClassIter'
+#+END_SRC
+调用方式: gunicorn app:AppClassIter
+
+通过以上两段代码, 可以观察到能够被调用的方法会传environ和startResponse过来, 而目前的实现方式
+没有可调用的方式, 因此需要在实例化的时候通过参数传递进来, 在返回body前可以先调用startResponse
+方法.
+因此可以推测WSGI Server调用WSGI Application的大致代码如下:
+#+BEGIN_SRC python
+def start_response(status, headers):
+    # 伪代码
+    set_staus(status)
+    for k, v in headers:
+        set_header(k, v)
+
+def handle_conn(conn):
+    # 调用自身定义的application, 即SimpeApp, AppClass实例或AppClassIter
+    app = application(environ, start_response)
+    for data in app:
+        response += data
+    conn.sendall(response)
+#+END_SRC
+
+** WSGI中间件
+WSGI还定义了中间件部分的逻辑, 该中间件可以理解为Python的一个装饰器, 可以在不改变原方法的同时
+对方法的输入和输出部分进行处理.
+
+Werkzeug就是这样的WSGI工具集.
+* Django使用
+** 模型设置了choices选项
+对于设置了choices的字段, Django会提供一个方法, 用来获取这个字段对应的要展示的值.
+#+BEGIN_SRC html
+<ul>
+    {% for student in students %}
+        <li>{{ student.name }} - {{ student.get_status_display }}</li>
+    {% endfor %}
+</ul>
+#+END_SRC
+
+** 提交数据的Form
+可以复用models中的Model
+#+BEGIN_SRC python
+
+# filename: forms.py
+from django import forms
+from .models import Student
+
+class StudentForm(forms.ModelForm):
+    class Meta:
+        model = Student
+        fields = (
+            'name', 'sex', 'profession',
+            'email', 'qq', 'phone'
+        )
+
+    # 定义clean_xx来处理每个字段. 比如在这个form中你可以通过定义clean_phone来处理电话号码
+    # 可以定义clean_email来处理邮箱等等. 如果验证失败, 
+    # 可以通过raise forms.ValidationError('必须是数字！')的方式返回错误信息
+    # 这个信息会存储在form中; 最终会被渲染到页面上
+    # 此Form也可以在views中使用.
+    def clean_qq(self):
+        cleaned_data = self.cleaned_data['qq']
+        if not cleaned_data.isdigit():
+            raise forms.ValidationError('必须是数字！')
+        return int(cleaned_data)
+#+END_SRC
+
+#+BEGIN_SRC html
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>学员管理系统-by the5fire</title>
+    </head>
+    <body>
+        <h3><a href="/admin/">Admin</a></h3>
+        <ul>
+            {% for student in students %}
+            <li>{{ student.name }} - {{ student.get_status_display }}</li>
+            {% endfor %}
+        </ul>
+        <hr/>
+        <form action="/" method="post">
+            {% csrf_token %}  <!--Django对提交数据安全性做的校验-->
+            {{ form }}
+            <input type="submit" value="Submit" />
+        </form>
+    </body>
+</html>
+#+END_SRC
+** 使用基于函数的视图
+#+BEGIN_SRC python
+# filename: views.py
+from django.shortcuts import render
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from django.views import View
+
+from .models import Student
+from .forms import StudentForm
+def index(request):
+    students = Student.objects.all()
+    if request.method == 'POST':
+        form = StudentForm(request.POST)
+        if form.is_valid():
+            cleaned_data = form.cleaned_data
+            student = Student()
+            student.name = cleaned_data['name']
+            student.sex = cleaned_data['sex']
+            student.email = cleaned_data['email']
+            student.profession = cleaned_data['profession']
+            student.qq = cleaned_data['qq']
+            student.phone = cleaned_data['phone']
+            student.save()
+            return HttpResponseRedirect(reverse('index'))
+    else:
+        form = StudentForm()
+
+    context = {
+        'students': students,
+        'form': form,
+    }
+
+    return render(request, 'index.html', context=context)
+#+END_SRC
+url为: url(r'^$', views.index, name='index')
+
+** 使用基于类的视图
+#+BEGIN_SRC python
+# filename: views.py
+from django.shortcuts import render
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from django.views import View
+
+from .models import Student
+from .forms import StudentForm
+
+class IndexView(View):
+    template_name = 'index.html'
+
+    def get_context(self):
+        students = Student.objects.all()
+        context = {
+            'students': students,
+        }
+        return context
+
+    def get(self, request):
+        context = self.get_context()
+        form = StudentForm()
+        context.update({
+            'form': form
+        })
+        return render(request, self.template_name, context=context)
+
+    def post(self, request):
+        form = StudentForm(request.POST)
+        if form.is_valid():
+            cleaned_data = form.cleaned_data
+            student = Student()
+            student.name = cleaned_data['name']
+            student.sex = cleaned_data['sex']
+            student.email = cleaned_data['email']
+            student.profession = cleaned_data['profession']
+            student.qq = cleaned_data['qq']
+            student.phone = cleaned_data['phone']
+            student.save()
+            return HttpResponseRedirect(reverse('index'))  #reverse拿到对应的url, 这样不用硬编码
+        context = self.get_context()
+        context.update({
+            'form': form
+        })
+        return render(request, self.template_name, context=context)
+#+END_SRC
+此时url.py需要改为:  url(r'^$', IndexView.as_view(), name="index")
+
+** Middleware
+在views.py的同级目录创建一个middlewares.py,
+#+BEGIN_SRC python
+# filename: middlewares.py
+# coding:utf-8
+import time
+from django.utils.deprecation import MiddlewareMixin
+from django.urls import reverse
+
+# 定义了该middlewares后, 需要在settings.py中添加
+
+class TimeItMiddleware(MiddlewareMixin):
+
+    # 一个请求来到middelware层,进入的第一个方法. 一般情况可以在这里做一些校验,
+    # 比如用户登录, 或者HTTP中是否有认证头之类的验证. 这个方法需要两种返回值:
+    # HttpResponse或者None, 如果返回HttpResponse, 那么接下来的处理方法只会执行process_response
+    # 其他的方法将不会被执行. 这里需要注意的是, 如果此middleware在settings配置的MIDDLEWARE_CLASS的第一个的话
+    # 那么剩下的middleware也不会被执行, 另外一个返回值是None, 如果返回None, 那么Django会继续执行其他的方法
+    def process_request(self, request):
+        return
+
+    # 这个方法是在process_request之后执行的, 其中的func就是将要执行的view方法,
+    # 因此要统计一个view的执行时间,可以在这里来做. 它的返回值跟process_request一样
+    # HttpResponse/None, 逻辑也是一样. 如果返回None, Django会执行view函数,从而得到最终的Response
+    def process_view(self, request, func, *args, **kwargs):
+        if request.path != reverse('index'):
+            return None
+
+        start = time.time()
+        response = func(request)
+        costed = time.time() - start
+        print('{:.2f}s'.format(costed))
+        return response
+
+    # 只有在发生异常时才会进入到这个方法. 哪个阶段发生的异常呢？可以简单的理解为在将要调用的
+    # view中出现异常（就是在process_view的func函数中）或者返回的模板Response在render时
+    # 发生的异常, 会进入到这个方法中. 但是需要注意的是, 如果你在process_view中手动调用了func,
+    # 就像上面做的那样，那就不会触发process_exception了. 这个方法接收到异常之后, 可以选择处理异常,
+    # 然后返回一个含有异常信息的HttpResponse, 或者直接返回None.
+    # 不处理这种情况Django会使用自己的异常模板.
+    def process_exception(self, request, exception):
+        pass
+
+    # 执行完上面的方法并且Django帮忙我们执行完view之后,拿到最终的response
+    # 如果是使用了模板的Response(是指通过return render(request, 'index.html', context={})
+    # 的方式返回Response, 就会来到这个方法中. 这个方法中可以对response做一下操作,
+    # 比如Content-Type设置, 或者其他HEADER的修改/增加
+    def process_template_response(self, request, response):
+        return response
+
+    # 当所有流程都处理完毕,就来到了这个方法. 这个方法的逻辑跟process_template_response是完全一样的.
+    # 只是process_template_response是针对带有模板的response的处理
+    def process_response(self, request, response):
+        return response
+#+END_SRC
+
+[[file:~/Learn_space/blog_notes/python/img/middleware.svg][Middleware 处理过程示意图]]
+
+** TestCase
+在settings.py的数据库配置中可以配置测试数据库.
+#+BEGIN_SRC python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'HOST': '',
+        'PORT' : '',
+        'USER': '<user>',
+        'PASSWORD': '',
+        'NAME': '<dbname>',
+        'TEST': {  # 配置测试数据库
+            'NAME': '<testdbname>',  ## 这里配置
+        },
+    },
+}
+#+END_SRC
+
+测试函数说明:
+def setUp(self): 用来初始化环境,包括创建初始化的数据.
+def test_xxx(self): 以test_开头的方法是需要测试的方法,跑测试时会被执行.
+每个需要被测试的方法是相互独立的.
+def tearDown(self): 用来清理测试环境和测试数据, django中可以不用关心这个.
+
+Model层测试, 主要是来保证数据的写入和查询是可用的;
+同时也需要保证我们在Model层所提供的方法是符合预期的.
+
+在tests.py中添加文件内容:
+
+View层测试逻辑依赖Django提供的Django.test.Client对象. 总体代码如下:
+#+BEGIN_SRC python
+# -*- coding: utf-8 -*-
+from django.test import TestCase
+from django.test import Client
+from django.urls import reverse
+
+from .models import Student
+
+class StudentTestCase(TestCase):
+    # def tearDown(self):
+    #     pass
+        
+    def setUp(self):  # 准备数据
+        Student.objects.create(
+            name='test',
+            sex=1,
+            email='333@dd.com',
+            profession='程序员',
+            qq='3333',
+            phone='32222',
+        )
+        self.client = Client()
+        # Client(HTTP_USER_AGENT='Mozilla/5.0') # 指定浏览器头
+        # 如果启用了csrf检查, 则client可以换成csrf_client
+        self.csrf_client = Client(enforce_csrf_checks=True)
+
+    # 对Model的测试
+    def test_filter(self):
+        # 查询是否正确
+        students = Student.objects.filter(name='test')
+        self.assertEqual(students.count(), 1, "only one is right")
+
+    def test_get_index(self):
+        client = Client()
+        url = reverse("index")
+        print("URL:{}".format(url))
+
+        response = client.get('/')  # 请求页面GET方法
+        self.assertEqual(response.status_code, 200, 'status code must be 200!')
+
+    def test_post_index(self):
+        data = dict(
+            name='test_for_post',
+            sex=1,
+            email='333@dd.com',
+            profession='程序员',
+            qq='3333',
+            phone='32222',
+        )
+        response = self.client.post("/", data)  # 请求页面POST方法
+        print response.status_code
+        response = self.client.get('/')
+        self.assertTrue(b'test_for_post' in response.content, 'response content must contain `test_for_post`')
+
+    # 测试提交文件
+    # def test_postpic(self):
+    #     with open('wishlist.doc') as fp:
+    #         self.client.post('url', {'name': 'fred', 'attachment': fp})
+
+# 使用类的方式
+class MyTestClient(Client):
+    pass
+class MyTest(TestCase):
+    client_class = MyTestClient
+ 
+    def test_filter(self):
+        print("Client TEST")
+        response = self.client.get('/')  # 请求页面GET方法
+        self.assertEqual(response.status_code, 200, 'status code must be 200!')
+#+END_SRC
+
+运行测试的命令:
+python manage.py test # 运行全部的测试用例
+python manage.py test <mode>  # 运行某个app下的测试用例
+
+* 遇到的问题以及解决方法
+** 执行python manage.py test 报错
+错误内容大致如下:
+django.db.utils.OperationalError: \
+(1366, "Incorrect string value: '\\xE5\\xAD\\xA6\\xE5\\x91\\x98...' \
+for column 'name' at row 1")
+
+原因是: mysql服务端的默认编码格式不是utf-8
+
+解决方法1: 建议使用该方法
+编辑/etc/mysql/my.cnf, 添加如下内容:
+[client] 
+default-character-set =utf8
+
+[mysql] 
+default-character-set =utf8
+
+[mysqld]
+collation-server = utf8_unicode_ci
+init_connect ='SET NAMES utf8'
+character_set_server=utf8
+
+解决方法2:
+直接修改settings.py文件, 如下:
+#+BEGIN_SRC python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'HOST': '127.0.0.1',
+        'PORT': '33306',
+        'USER': 'root',
+        'PASSWORD': '',
+        'NAME': 'student',
+        "TEST": {  # 定义测试用的数据库的名称
+            'NAME': 'teststudent',
+            "CHARSET": "utf8mb4",
+            'OPTIONS': {
+                'charset': 'utf8mb4',
+                'init_command': ('SET character_set_connection=utf8mb4;'
+                'SET collation_connection=utf8mb4_unicode_ci;'
+                "SET NAMES 'utf8mb4';"
+                "SET CHARACTER SET utf8mb4;")
+            },
+        },
+    },
+}
+#+END_SRC
+* django使用ajax_form的注意事项
+1. 安装ajax_select后, 在settings.py的INSTALLED_APPS中添加ajax_select应用
+2. 在settings.py的同级目录的urls.py文件中添加如下的url:
+   url(r'^ajax_select/', include('ajax_select.urls')),
+3. model建立不需要更改
+4. model对应的Admin需要继承自AjaxSelectAdmin
+   from ajax_select.admin import AjaxSelectAdmin
+   并且该Admin的form需要重新定义
+5. 定义form
+   #+BEGIN_SRC python
+from ajax_select.fields import AutoCompleteSelectMultipleField
+
+class UserCardForm(forms.ModelForm):
+    class Meta:
+        model = xxxxModel
+        fields = ("", "")  # 定义需要在页面显示的数据
+    # related 定义的字段名
+    tagids = AutoCompleteSelectMultipleField("related_name", required=False, label="xx")
+   #+END_SRC
+6. 定义lookup
+   新建lookups.py
+   #+BEGIN_SRC python
+from ajax_select import register, LookupChannel
+from usercard.models import *
+
+@register("related_name")
+class UserCardLookUp(LookupChannel):
+    model = xxxModel
+
+    def get_query(self, q, request):
+        return self.model.objects.filter(description__icontains=q).order_by("-id")
+
+    def format_item_display(self, obj):
+        return u"<span style='color:red'>%s</span>" % (obj.description) 
+   #+END_SRC
+* django自定义上传图片
+[[https://docs.djangoproject.com/en/1.11/howto/custom-file-storage/][django 1.11版本中的官方文档]]
+
+#+BEGIN_SRC python
+from django.core.files.storage import Storage
+from django.utils.six.moves.urllib.parse import urljoin
+from django.utils.encoding import filepath_to_uri
+from django.utils.deconstruct import deconstructible
+
+# 自定义Storage, 只要实现storage的几个方法就行了, 主要是_save
+@deconstructible
+class MyStorage(Storage):
+    def _open(self, name, mode="rb"):
+        print("{} _open".format(self.__func__))
+        return open(name)
+
+    def _save(self, name, content):
+        print("{} _save".format(self.__class__))
+        filePath = os.path.dirname(name)
+        filePath = "/tmp/{}".format(filePath)
+        if not os.path.exists(filePath):
+            os.makedirs(filePath)
+
+        with open("/tmp/{}".format(name), "wb") as f:
+            f.write(content.read())
+
+        return "mystoreage"
+    
+    def exists(self, name):
+        # 可用于检查文件是否已经存在
+        print("{} exists".format(self.__class__))
+        return False
+
+    def listdir(self, path):
+        print("{} listdir".format(self.__class__))
+        pass
+
+    def size(self, name):
+        print("{} size".format(self.__class__))
+        return 0
+
+    def url(self, name):
+        print("{} url".format(self.__class__))
+        return "picurl"
+
+class CasperImages(models.Model):
+    description = models.CharField(max_length=64, blank=True, verbose_name="描述", default="默认图片")
+    myimage = models.FileField(upload_to="images/%Y/%m/%d",
+        blank=True, storage=MyStorage(), verbose_name="自定义上传")
+        
+    class Meta:
+        verbose_name = "图片资源"
+        verbose_name_plural = "图片资源"
+        ordering = ('-pk',)
+#+END_SRC
+* Django Template
+[[file:django_template.org][django模板]]
+
+* Django的交互模式
+python manage.py shell  # 启动交互模式
