@@ -181,3 +181,5 @@ command是英语"命令"的意思,因此run commands就是"运行命令"的意�
 chsh <shell_path>
 * systemd命令
 [[http://www.ruanyifeng.com/blog/2016/03/systemd-tutorial-commands.html][参考资料]]
+* mount命令
+mount -l  # 查看系统的挂载信息

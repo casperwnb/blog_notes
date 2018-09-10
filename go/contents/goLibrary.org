@@ -137,6 +137,8 @@ parse是参数的解析，然后去改变量值的指针指向的那个值
 ** os.Args
 os包以跨平台的方式, 提供了一些与操作系统交互的函数和变量.
 os.Args保存了变量, 是一个字符串的切片.
+os.Args[ 0]保存的是命令本身的名字, 其他元素则是程序启动时传给它的参数.
+
 #+BEGIN_SRC go
 for _, args := range os.Args {
 }
@@ -392,3 +394,5 @@ func main() {
 	}
 }
 #+END_SRC
+* strings包
+strings.Join(os.Args[1:], " ")
