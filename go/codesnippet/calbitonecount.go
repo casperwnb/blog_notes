@@ -28,4 +28,5 @@ func PopCount2(x uint64) int {
 		x &= (x - 1)
 		count++
 	}
+	return count
 }

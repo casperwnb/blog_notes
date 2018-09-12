@@ -396,3 +396,76 @@ func main() {
 #+END_SRC
 * strings包
 strings.Join(os.Args[1:], " ")
+* image包
+** 创建GIT动画
+使用这个包来生成一系列的bit-mapped图, 然后将这些图片编码为一个GIF动画.
+生成的图形名字叫做利萨如图(Lissajous figures), 这种效果在1960年代的老电影里出现的一种视觉特效.
+它们是协振子在两个维度上振动所产生的曲线. 比如: 两个sin正玹波分别在x轴和y轴输入会产生的曲线.
+
+利萨如图有很多特性, 可以自行查阅资料.
+
+** 代码
+#+BEGIN_SRC go
+package main
+
+import (
+	"image"
+	"image/color"
+	"image/gif"
+	"io"
+	"math"
+	"math/rand"
+	"os"
+)
+
+var palette = []color.Color{color.White, color.Black}
+
+const (
+	whiteIndex = 0 // first color in palette
+	blackIndex = 1
+)
+
+func main() {
+	lissajous(os.Stdout)
+}
+
+func lissajous(out io.Writer) {
+	const (
+		cycles  = 5     // number of complete x oscillator revolutions
+		res     = 0.001 // angular resolution, 角度分辨率
+		size    = 100   // image canvas covers [-size .. +size]
+		nframes = 64    // number of animation frames
+		delay   = 8     // delay between frames in 10ms units
+	)
+
+	freq := rand.Float64() * 3.0 // relative frequency of y oscillator
+	anim := gif.GIF{LoopCount: nframes}
+	phase := 0.0 // phase difference
+
+	for i := 0; i < nframes; i++ {
+		rect := image.Rect(0, 0, 2*size+1, 2*size+1)
+		img := image.NewPaletted(rect, palette)
+
+		for t := 0.0; t < cycles*2*math.Pi; t += res {
+			x := math.Sin(t)
+			y := math.Sin(t*freq + phase)
+			img.SetColorIndex(size+int(x*size+0.5), size+int(y*size+0.5), blackIndex)
+		}
+		phase += 0.1
+
+		anim.Delay = append(anim.Delay, delay)
+		anim.Image = append(anim.Image, img)
+	}
+
+	gif.EncodeAll(out, &anim) // ignore encoding errors
+
+}
+// 运行: go run main.go > lissajous.gif
+#+END_SRC
+* math/cmplx包
+该包提供了复数处理的许多函数
+* unicode包
+提供了诸多处理rune字符相关的函数, unicode/utf8包提供了用于rune字符序列的utf8编码和解码的功能.
+
+* path和path/filepath包
+提供了关于路径名的函数操作.

@@ -17,3 +17,180 @@ for init; condition; post {
 
 for的这三个部分都可以省略或省略部分. condition是一个布尔表达式, 其值在每次循环迭代开始时计算.
 
+** printf格式
+fmt.Printf的转换格式定义:
+| %d         | 十进制整数                               |
+| %x, %o, %b | 16, 8, 2进制整数                         |
+| %f, %g, %e | 浮点数                                   |
+| %t         | 布尔: true/false                         |
+| %c         | 字符(rune)unicode码点                    |
+| %s         | 字符串                                   |
+| %q         | 带双引号的字符串"abc"或带单引号的字符'c' |
+| %T         | 变量的类型                               |
+| %%         | 输出百分号标志                           |
+| %#         |                                          |
+#+BEGIN_SRC go
+// %[1]表示使用第一个操作数, 即10
+// %#表示在使用%o, %x或%X时输出时生成0, 0x, 0X前缀
+fmt.Printf("%d, %[1]o, %#[1]x\n", 10)
+
+// 打印8个字符宽度, 小数点后3个字符宽度, 如果不足8个字符宽度, 会使用空格填充,
+// 超过8个字符则不会截断
+fmt.Printf("%8.3f\n", 1.334567)
+fmt.Printf("%08b\n", 10)  // 不足8位时使用0补齐
+#+END_SRC
+** switch
+go中的switch不需要显式的在每一个case后写break, 语言默认执行完case后的逻辑语句会自动退出.
+如果在一个case语句下, 不想执行后面的内容, 则可以使用break语句.
+#+BEGIN_SRC go
+func main() {
+	a := 1
+	switch a {
+	case 1:
+		fmt.Println("case 1")
+		if false {
+			fmt.Println("no through")
+			break
+		}
+		fallthrough
+	case 2:
+		fmt.Println("case 2")
+	}
+
+    // 另一种switch格式, 无tagswitch, 与switch true等价
+	switch {
+	case a == 1:
+		fmt.Println("a == 1")
+	}
+}
+#+END_SRC
+如果想相邻的几个case都执行同一逻辑, 可以显示的加上fallthrough, 必须加在每个case的最后位置.
+
+** 指针
+go可以是&返回一个变量的地址, *可以获取指针指向的变量内容, 但没有指针运算.
+
+** go doc
+go doc http.ListenAndServe  # 在本地查看ListenAndServe的注释信息
+
+在需要导出的函数前写注释:
+// <funcName> xxx
+func funcName() {}
+
+** 变量
+go会对每个未赋值的变量使用"零值"初始化, 这可以确保每个声明的变量总是有一个良好定义的值.
+在包级别声明的变量会在main入口函数执行前完成初始化, 局部变量将在声明语句被执行到的时候完成初始化.
+
+var i, j, k int
+var b, f, s = true, 2.3, "four"
+
+简短变量声明语句必须至少要包含一个新的声明, 并且旧变量的类型不能变化.
+
+go中返回函数中局部变量的地址是安全的.
+
+编译器会自动选择在栈上还是堆上分配局部变量的存储空间, 但这个选择并不是由var还是new
+声明变量的方式决定的.
+
+math.Nan()返回一个非数对应的值, 是float64类型的, 可以使用math.IsNaN来测试一个数是否是非数.
+在浮点数中, NaN, 正无穷和负无穷都不是唯一的, 每个都有非常多的bit模式表示.
+
+** new
+new(T)将创建一个T类型的匿名变量, 初始化为T类型的零值, 然后返回变量地址, 返回的指针类型为*T.
+
+如果两个类型都是空的, 即类型的大小是0, 如: struct{}和[ 0]int, 有可能有相同的地址(依赖具体的语言
+实现, 并且也可能导致Go语言的自动垃圾回收器有不同的行为, 查看runtime.SetFinalizer相关信息).
+
+** 类型
+具有相同底层类型的类型是不同的数据类型, 不能相互比较或混在一个表达式运算中.
+#+BEGIN_SRC go
+type Celsius float64  // 摄氏温度
+type Fahren float64  // 华氏温度
+
+var t Celsius
+Fahren(t)  // 类型转换, 不是函数调用
+#+END_SRC
+类型转换不会改变值本身, 但会使它们的语义发生变化. 对于每一个类型T, 都有一个类型转换操作T(x), 用于
+将x转换为T类型, 如果T是指针类型可能会需要用小括号包装, 如(*int)0.
+
+只有当两个类型的底层基础类型相同时才允许这种转型操作, 或者是两者都指向相同底层结构的指针类型.
+将一个字符串转为[]byte类型的slice将拷贝一个字符串数据的副本.
+
+任何情况下, 运行时不会发生转换失败的错误, 错误只会发生在编译阶段.
+
+** 包
+如果包中含有多个.go源文件, 他们将按照发给编译器的顺序进行初始化, go构建工具会先将go文件根据文件
+名排序, 然后依次调用编译器编译.
+
+#+BEGIN_SRC go
+var pc [256]byte = func() (pc [256]byte) {
+    for i:= range pc {
+        pc[i] = pc[i/2] + byte(i&1)
+    }
+    return
+}()  // 直接定义值
+#+END_SRC
+
+包变量会被函数中的局部变量隐藏, 例如:
+#+BEGIN_SRC go
+var cwd string
+
+func init() {
+    cwd, err := os.Getwd()  // 此处不会使用全局的cwd, 可以使用go vet -shadow main.go检查
+}
+#+END_SRC
+
+** unicode字符
+unicode字符是rune类型, 是和int32等价的类型, 用于表示一个unicode码点.
+UTF8使用1~4个字节来表示每个Unicode码点, 每个符号编码后第一个字节的高端bit位用于表示
+总共有多少个编码字节, 如果第一个字节的高端bit为0, 则表示对于7bit的ASCII字符. 如果第一个字节的高端
+bit是110, 则说明需要两个字节, 后续的每个高端bit都以10开头, 如下:
+| 0xxxxxxx                            |    runes 0-127 | ASCII                |
+| 110xxxxx 10xxxxxx                   |       128-2047 | values < 128 unused  |
+| 1110xxxx 10xxxxxx 10xxxxxx          |     2048-65535 | values < 2048 unused |
+| 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx | 65535-0x10ffff | other values unused  |
+
+UTF8编码是一个前缀编码, 与Unicode的码点顺序一致, 可以直接排序UTF8编码序列. 应为没有嵌入的NUL(0)
+字节, 可以很好的兼容那些使用NUL作为字符串结尾的编程语言.
+
+#+BEGIN_SRC go 操作Unicode
+s := "Hello, 世界"
+b := []byte(s)  // 转换为字节slice
+fmt.Println(utf8.RuneCountInString(s))
+
+for i:=0; i<len(s); {
+    r, size := utf8.DecodeRuneInString(s[i:])  // r表示rune字符本身, size表示该字符占用的字节数
+    fmt.Printf("%d\t%c\n", i, r)
+    i += size
+}
+
+for i, r := range s {
+    fmt.Println(i, r)
+}
+#+END_SRC
+如果遇到一个错误的UTF8编码输入, 将生成一个特别的unicode字符"\uFFFD".
+将一个整数转型为字符串意思是生成以只包含对应Unicode码点字符的UTF8字符串.
+
+** 操作符
+取模运算符仅用于整数, 其符合与被取模运算符的符号一致.
+
+&^: 位清空(AND NOT).
+z = x &^ y: 如果y中对应的bit位为1, 则z中的对应为为0, 其他情况保持不变.
+
+** 内置len函数返回有符号数的一种合理解释
+例如:
+#+BEGIN_SRC go
+medals := []string{"gold", "silver"}
+for i := len(medals) - 1; i >= 0; i-- {
+    fmt.Println(medals[i])
+}
+#+END_SRC
+如果len返回一个无符号数, 则i >= 0会永远成立, 这样就会超出数组的访问范围从而引发panic.
+
+** 字符串
+len返回字符串的字节数目, 不是rune字符数目.
+字符串操作s[i:j]基于原始的s字符串生成一个新字符串.
+#+BEGIN_SRC go 想法验证
+s := "I Love Candice"
+a := s[1:2]
+b := s[1:2]
+fmt.Printf("%p %p\n", a, b)  // 输出的地址值不一样, 因此可以证明是新生成一个字符串
+#+END_SRC

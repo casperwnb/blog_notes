@@ -1,0 +1,532 @@
+* Linux Namespace
+** 介绍
+Linux Namespace是Kernel的一个功能, 可以隔离一系列的系统资源, 如PID(Process ID), User Id, Network
+等, 还可以在一些资源上, 将进程隔离起来, 包括进程树、网络接口、挂载点等.
+
+当前Linux一个实现了6种不同类型的Namesapce, 如下:
+| Namespace类型     | 系统调用参数  | 内核版本 | 作用                                   |
+|-------------------+---------------+----------+----------------------------------------|
+| Mount Namespace   | CLONE_NEWNS   |   2.4.19 |                                        |
+| UTS Namespace     | CLONE_NEWUTS  |   2.6.19 | 主要用来隔离nodename和domainname       |
+| IPC Namespace     | CLONE_NEWIPC  |   2.6.19 | 隔离System V IPC与POSIX message queues |
+| PID Namespace     | CLONE_NEWPID  |   2.6.24 | 隔离进程ID                             |
+| Network Namespace | CLONE_NEWNET  |   2.6.29 | 隔离网络设备、IP地址端口等网络栈       |
+| User Namespace    | CLONE_NEWUSER |      3.8 | 隔离用户组                             |
+
+Namespace的API主要使用如下3个系统调用:
+1. clone()创建新进程, 根据系统调用参数来判断哪些类型的Namespace被创建, 并且它们的子进程也会被包含
+   到这些namespace中.
+2. unshare(), 将进程移出某个namespace
+3. setns(), 将进程加入到某个Namespace
+
+Namespace技术实际上修改了应用进程看待整个计算机的"视图", 即它的"视线"被操作系统做了限制,
+只能"看到"某些指定的内容, 但对宿主机来说, 这些"隔离"了的进程跟其他进程并没有太大的区别.
+
+docker并不对应用进程的隔离环境负责, 也不会创建任何实体的"容器", 真正对隔离环境负责的是宿主机操作
+系统本身.
+
+** Namesapce的隔离
+Namespace的隔离不是很彻底. 表现在:
+1. 既然容器只是运行在宿主机上的一种特殊的进程, 那么多个容器之间使用的就还是一个宿主机的操作系统
+   内核.
+2. 在Linux内核中, 有很多资源和对象是不能被Namespace化的, 例如: 时间
+   即如果在容器中的程序使用settimeofday(2)系统调用修改了时间, 整个宿主机的时间都会被随之改变.
+   这显然不符合用户的预期.
+   
+   容器给应用暴露出来的攻击面也是相当大的, 应用"越狱"的难度自然比虚拟机低很多.
+   在实践中可以使用seccomp等技术对容器内部发起的所有系统调用进行过滤和甄别来进行安全加固, 但因为
+   多了一层对系统调用的过滤, 一定会拖累容器的性能. 并且默认情况下, 谁也不知道到底该开启哪些系统
+   调用, 禁止哪些系统调用.
+
+   基于虚拟化或者独立内核技术的容器实现, 则可以比较好的在隔离与性能之间做平衡.
+
+** 容器的"限制"
+虽然容器内的1号进程在"障眼法"的干扰下只能看到容器里的情况, 在宿主机上作为100号进程与其他进程之间
+依然是平等的竞争关系, 表面上第100号进程被隔离起来了, 但它所能使用到的资源(如CPU,内存)却是可以被
+宿主机上的其他进程或容器占用的, 这个100号进程也可能将系统的资源全部吃光. 这些情况, 不应当是一个
+"沙盒"应该表现出来的合理行为.
+
+Linux Cgroups就是Linux内核中用来为进程设置资源限制的一个重要功能. 主要用处是用来限制一个进程组能够
+使用的资源上限, 包括CPU、内存、磁盘、网络带宽等.
+
+Cgroups还能够对进程进行优先级设置、审计, 以及将进程挂起和恢复等操作.
+
+Linux中Cgroups给用户暴露出来的操作接口是文件系统, 即以文件和目录的方式组织在操作系统的
+/sys/fs/cgroup路径下.
+
+cgroups的每一项子系统都有其独有的资源限制能力, 如:
+blkio: 为块设备设定I/O限制, 一般用于磁盘等设备
+cpuset: 为进程分配单独的CPU核和对应的内存节点
+memory: 为进程设定内存使用的限制
+
+Linux Cgroup的设计比较容易, 简单的可以理解为它就是一个子系统目录加上一组资源限制文件的组合.
+
+对于docker等Linux容器项目来说, 它们只需要在每个子系统下面为每个容器创建一个控制组, 然后启动容器
+将该容器的进程ID填写到对应控制组的tasks文件中即可. 这些值的大小可以通过在创建容器时指定.
+docker run -ti --cpu-period=xxx --cpu-quota=xx ubuntu /bin/bash
+
+** 手动操作
+mount -t cgroup  #  查看cgroup, 它的输出结果是一系列文件目录
+
+在/sys/fs/cgroup下有很多诸如cpuset、cpu、memory这样的子目录, 这叫做子系统, 在子系统对应的资源种类
+下, 可以看到该类资源具体可以被限制的方法.
+ls /sys/fs/cgroup/cpu  # 查看cpu子系统下的配置文件.
+
+注意到cfs_period和cfs_quota这两个文件(参数)组合使用, 可以用来限制进程在长度为cfs_period的一段
+时间内, 只能被分配到总量为cfs_quota的CPU时间.
+
+对于这样的配置文件使用示例:
+1. 在对应的子系统下面创建一个目录, 如进入/sys/fs/cgroup/cpu目录下
+   mkdir casper
+   该目录就称为一个"控制组", 操作系统会在该新创建的casper目录下, 自动生成该子系统对应的资源限制
+   文件.
+2. 在后台执行一个脚本, 脚本内容如下:
+   while : ; do :; done &
+3. 执行上述脚本后, 使用top命令可以看到cpu的负载会很高
+   此时查看casper目录下的文件, cpu quota还没有任何限制(-1), cpu period则是默认的100ms(即100000us)
+   此时修改这些文件的内容来设置限制.
+   echo 20000 > /sys/fs/cgroup/cpu/casper/cpu.cfs_quota_us  # 写入20ms
+   表示在每100ms的时间里, 该控制组限制的进程只能使用20ms的CPU时间, 即只能用到20%的CPU带宽
+   
+   接下来需要将限制的进程的PID写入container组里的tasks文件
+   echo <PID> > /sys/fs/cgroup/cpu/casper/tasks
+** go实现的代码
+#+BEGIN_SRC go uts code
+package main
+
+import (
+	"log"
+	"os"
+	"os/exec"
+	"syscall"
+)
+
+func main() {
+	cmd := exec.Command("sh")
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC |
+			syscall.CLONE_NEWPID | syscall.CLONE_NEWNS |
+            syscall.CLONE_NEWNET | syscall.CLONE_NEWUSER,
+	}
+    // 加入user namespace之后, 无法正常运行, 
+	//cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(1), Gid: uint32(1)}
+
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		log.Fatal(err)
+	}
+	os.Exit(-1)
+}
+
+
+// go run main.go  // 进入一个新的UTS namespace中.
+#+END_SRC
+
+检验是否进入新的UTS Namespace中:
+1. pstree -pl | grep main.go
+   寻找当前进程的父进程
+2. echo $$
+   输出当前进程的PID
+3. readlink /proc/<Father_PID>/ns/uts
+   readlink /proc/<Cur_PID>/ns/uts
+4. hostname -b xxx  # 设置hostname
+   hostname  #读取hostname
+
+检验是否启用了IPC Namespace的步骤:
+1. ipc -q  # 查看现有的ipc message queue
+2. ipcmk -Q  # 新建一个message queue
+3. 在另一个shell中执行go run main.go
+4. 然后执行ipc -q, 看看是否能看到刚刚建立的message queue
+
+检验是否启用了Mount Namespace:
+1. ls /proc  # proc是一个文件系统, 提供额外的机制可以通过内核和内核模块将信息发送给进程
+2. mount -t proc proc /proc  # 在容器内挂载/proc
+3. ps -ef  # 此时就只能看到部分容器内的进程信息
+
+* 容器镜像
+** 使用Mount Namespace的C代码
+#+BEGIN_SRC c
+#define _GNU_SOURCE
+#include <sys/mount.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdio.h>
+#include <sched.h>
+#include <signal.h>
+#include <unistd.h>
+
+#define STACK_SIZE (1024 * 1024)
+
+static char container_stack[STACK_SIZE];
+char *const container_args[] = {
+    "/bin/bash",
+    NULL
+};
+
+int container_main(void* arg) {
+    printf("Container - inside the container!\n");
+
+    // 如果机器的根目录的挂载类型是shared, 必须先重新挂载根目录.
+    // mount("", "/", NULL, MS_PRIVATE, "");
+
+    // 让容器以tmpfs格式重新挂载/tmp目录,
+    // 如果不执行该语句, ls /tmp看到的任然是宿主机上的文件内容
+    mount("none", "/tmp", "tmpfs", 0, "");
+    
+    execv(container_args[0], container_args);
+    printf("Something's Wrong\n");
+    return 1;
+}
+
+int main() {
+    printf("Parent - start a container\n");
+    int container_pid = clone(container_main, container_stack+STACK_SIZE,
+    CLONE_NEWNS | SIGCHLD, NULL);
+
+    waitpid(container_pid, NULL, 0);
+    printf("Parent - container stopped!\n");
+    return 0;
+}
+
+// 编译: gcc -o mountns mountns.c
+#+END_SRC
+
+** 容器中的目录
+Mount Namespace修改的, 是容器进程对文件系统"挂载点"的认知. 即只有在"挂载"操作发生之后,进程的视图
+才会被改变, 而在此之前, 新建的容器会直接继承宿主机的各个挂载点.
+
+通过以上代码可以得出, Mount Namespace与其他Namespace的使用略有不同, Mount Namespace对容器进程
+视图的改变, 一定是伴随着挂载操作才能生效.
+
+为了方便用户操作, 因此可以在容器启动之前重新挂载它的整个根目录"/", 由于Mount Namespace的存在, 该
+挂载对宿主机不可见, 所以容器进程就可以随便折腾了.
+
+Linux中有一个名为chroot的命令可以在shell中方便地完成这个工作, 其作用是改变进程的根目录到
+指定的位置. 用法如下:
+1. 假设有一个目录 $HOME/test, 想将其作为一个/bin/bash进程的根目录, 操作如下
+   mkdir -p $HOME/test
+   mkdir -p $HOME/test/{bin,lib64,lib}
+   cd $HOME/test
+   
+   # 将bash命令拷贝到test目录对应的bin路径下
+   cp -v /bin/{bash,ls} $HOME/test/bin
+2. 将bash命令需要的所有so文件, 也拷贝到test目录对应的lib路径下
+   T=$HOME/test
+   soList="$(ldd /bin/ls | egrep -o '/lib.*\.[0-9]')"
+   for i in $soList; do cp -v "$i" "${T}${i}"; done
+3. 执行chroot命令
+   chroot $HOME/test /bin/bash
+
+实际上Mount Namespace正是基于对chroot的不断改良才被发明出来的, 也是Linux里的第一个Namespace
+为了能够让容器的根目录看起来更真实, 一般会在这个容器的根目录下挂载一个完整操作系统的文件系统.
+此时容器启动后, 就能看见完整的内容.
+
+这个挂载在容器根目录上, 用来为容器进程提供隔离后执行环境的文件系统, 就是所谓的"容器镜像",
+也叫做rootfs(根文件系统).
+
+注意: rootfs只是一个操作系统所包含的文件、配置和目录, 并不包括操作系统内核, 在Linux操作系统
+中, 这两部分是分开存放的, 操作系统只有在开机启动时才会加载指定版本的内核镜像. 即: rootfs只
+包含了操作系统的躯壳, 并没有包含操作系统的"灵魂".
+
+此时如果你的应用程序需要配置内核参数、加载额外的内核模块, 以及跟内核进行直接的交互时, 这些操作
+所依赖的对象都是宿主机操作系统的内核, 对于该机器上的所有容器来说是一个"全局变量".
+正是由于rootfs的存在, 容器才有了一个重要特性: 一致性.
+
+对docker项目来说, 最核心的原理实际上就是为待创建的用户进程做如下事情:
+1. 启用Linux Namespace配置
+2. 设置指定的Cgroups参数
+3. 切换进程的根目录(Change Root)
+
+docker在最后一个的切换上会优先使用pivot_root系统调用, 如果系统不支持, 才会使用chroot. 这两个
+系统调用还是有细微的差别.
+
+有了容器之后或者说是有了容器镜像(rootfs)之后, rootfs里打包的不只是应用, 而是整个操作系统的文件
+和目录, 这就意味着, 应用以及它运行所需要的所有依赖都被封装在一起了. 对一个应用来说, 操作系统
+本身才是它运行所需要的最完整的"依赖库".
+
+docker在镜像的设计中, 引入了层(layer)的概念, 即用户每制作镜像的每一步操作, 都会生成一个层,
+即一个增量rootfs.
+
+** Union File System - UnionFS
+UnionFS使用branch把不同文件系统的文件和目录"透明的"覆盖, 形成一个单一一致的文件系统.
+这些branch或者是read-only或者是read-write的, 当对这个虚拟后的联合文件系统进行写操作时, 系统是真正
+写到了一个新的文件中, unionfs使用了写时复制技术(CoW).
+
+unionfs主要功能是将多个不同位置的目录联合挂载到同一个目录下.
+操作命令如下:
+1. A目录中有文件a,x
+   B目录中有文件b,x
+2. 联合挂载
+   mount -t aufs -o dirs=./A:./B none ./C
+   此时看C时, 就有a,b,x文件, 并且x只有一份.
+   如果此时对a, b, x文件做修改, 这些修改也会在对应的目录A、B中生效.
+
+AuFS的全称是: Another UnionFS, 后改名为Alternative UnionFS, 后来改名为Advance UnionFS.
+从名字中可以看出:
+1. 它是对Linux原生UnionFS的重写和改进
+2. AuFS一直没有进入Linux内核主干, 只能在Ubunut和Debian这些发行版上使用它.
+对于AuFS来说, 最关键的目录结构在/var/lib/docker路径下的diff目录.
+
+** docker使用Aufs
+docker CE 18.05在Ubuntu 16.04上默认是AuFS文件系统.
+
+/var/lib/docker/aufs/layers目录存储了image layer如何堆栈这些layer的metadata
+docker会将容器的运行信息存放在/var/lib/docker/containers/<ContainerID>目录中.
+
+docker中aufs的关键目录是: /var/lib/docker/aufs/diff/<layer_id>
+该目录的作用, 可以通过启动一个docker容器来观察.
+docker run -dti ubuntu /bin/bash  # 该命令会从dockerhub上下载ubuntu的最新镜像,并启动容器
+
+docker image inspect ubuntu  # 查看ubuntu镜像的信息
+
+会看到Layers层有几条数据, 这几条数据的每条数据就是增量rootfs, 每一层都是ubuntu操作系统文件与目录
+的一部分, 在使用镜像时, docker会把这些增量联合挂载在一个统一的挂载点上, 该挂载点就是:
+/var/lib/docker/aufs/mnt/
+
+aufs联合挂载的信息记录在/sys/fs/aufs下面.
+
+1. 通过查看aufs的挂载信息可以找到这个目录对应的aufs的内部ID(也叫si)
+   cat /proc/mounts | grep aufs
+   或者 mount -l | grep aufs
+2. 通过ID可以在/sys/fs/aufs下查看被关联在一起的各个层的信息
+   cat /sys/fs/aufs/si_<ID>/br[0-9]*
+
+总结: 镜像的层都放在/var/lib/docker/aufs/diff目录下, 联合挂载的目录在/var/lib/docker/aufs/mnt目录
+下, 并且从这个结构可以看出来, 该容器的rootfs由如下三部分组成.
+| 可读写层(rw)  |
+| init层(ro+wh) |
+| 只读层(ro+wh) |
+
+只读层: 是容器rootfs最下面的层, 对应的是ubuntu镜像层. 其挂载方式是ro+wh, 即read only + whiteout,
+这些层以增量的方式分别包含了ubuntu操作系统的一部分.
+
+可读写层: 容器rootfs最上面的层, 挂载方式是rw, 在没有写入数据前, 该层为空的, 一旦在容器中做了写
+操作, 修改产生的内容就会以增量的方式出现在这个层中.
+
+如果要删除只读层里的一个文件, 为了实现这一操作, aufs会在可读写层创建一个whiteout文件, 把只读层
+的文件遮挡起来, 这就是whiteout文件的作用.
+如要删除foo文件, 该操作会在读写层创建一个名叫.wh.foo的文件.
+修改完成之后, 可以使用docker commit和push指令保存这个被修改过的可读写层.
+
+init层: 是docker项目单独生成的一个内部层, 专门用来存放/etc/hosts, /etc/resolv.conf等信息.
+
+* Docker Exec如何进入容器
+** 原理
+每个进程的Namespace信息在宿主机上是确确实实存在的, 且以一个文件的方式存在.
+
+docker inspect --format '{{.State.Pid}}' <containerID>  # 查看容器的进程ID
+
+ls /proc/<PID>/ns  # 查看对应进程加入的namespace
+
+一个进程可以选择加入到某个进程已有的namespace中, 从而达到"进入"这个进程所在容器的目的, 这也是
+docker exec的原理.
+
+** c代码实现
+#+BEGIN_SRC c
+#define _GUN_SOURCE
+#include <fcntl.h>
+#include <sched.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#define errExit(msg) do {\
+    perror(msg);\
+    exit(EXIT_FAILURE);\
+} while(0)
+
+int main(int argc, char*argv[]) {
+    int fd;
+
+    fd = open(argv[1], O_RDONLY);
+    if (setns(fd, 0) == -1) {
+        errExit("setns");
+    }
+
+    execvp(argv[2], &argv[2]);
+    errExit("execvp");
+}
+
+// 这段代码一共接收两个参数, 第一个参数是当前进程要加入的Namespace文件路径,
+// 比如/proc/<PID>ns/net, 第二个参数是需要在该namespace里运行的进程
+// 核心操作是: 通过open调用打开了指定的Namespace文件, 将该文件的描述符fd
+// 交给setns使用, 在setns执行后, 当前进程就加入了这个文件对应的namespace中了.
+#+END_SRC
+
+* 容器的数据卷
+Volume机制允许将宿主机上指定的目录或文件挂载到容器里面进行读取和修改操作.
+
+** 数据卷操作
+docker run -v /test ...
+docker run -v /home:/test ...
+这两种声明的本质是一样的, 都是将一个宿主机的目录挂载到容器的/test目录下.
+
+第一种情况会默认在宿主机上创建一个临时目录/var/lib/docker/volumes/[volume_id]/_data, 然后将其
+挂载到容器的/test目录上.
+第二种情况直接将宿主机上的/home目录挂载到容器的/test目录上.
+
+只需要在rootfs准备好之后, 在执行chroot之前将volume指定的宿主机目录比如(/home目录)挂载到指定的容器
+目录(如/test)在宿主机上对应的目录(即: /var/lib/docker/aufs/mnt/[可读写层ID]/test)上, 该volume的
+挂载工作就完成了.
+由于执行这个挂载操作时, 容器进程已经创建, 即此时Mount Namespace已经开启了, 所以这个挂载事件只在
+这个容器里可见, 在宿主机上是看不见容器内部的挂载点的, 这就保证了容器的隔离性不会被volume打破.
+此处提到的"容器进程",是docker创建的一个容器初始化进程(dockerinit), 而不是应用进程(entrypoint+cmd)
+dockerinit会负责完成根目录的准备、挂载设备和目录、配置hostname等一系列需要在容器内进行的初始化
+操作, 最后通过execv调用, 让应用进程取代自己, 称为容器里的PID=1的进程.
+
+这里使用到的挂载技术, 就是Linux的绑定挂载(bind mount)机制.
+其主要作用是: 允许将一个目录或文件而不是整个设备挂载到一个指定的目录上, 并且在挂载点上进行的任何
+操作, 只是发生在被挂载的目录或文件上, 而原挂载点的内容则会被隐藏起来且不受影响.
+
+** 绑定挂载
+绑定挂载实际上就是一个inode的替换过程, 在Linux中inode可以理解为存放文件内容的"对象", dentry也叫
+目录项, 就是访问indoe所使用的"指针".
+
+mount --bind /home /test 的示意图: [[file:~/Learn_space/blog_notes/cloud/images/bindmount.png][mount bind示意图]]
+相当于将/test的dentry重定向到了/home的indoe. 执行umount之后, /test原先的内容就会恢复.
+
+在一个正确的时机, 进行一次绑定挂载, Docker就可以成功地将一个宿主机上的目录或文件, 不动声色的挂载
+到容器中.
+
+容器volume中的信息并不会被docker commit提交, 但这个挂载点目录本身则会出现在新的镜像中.
+
+* Linux CGroups
+** 简介
+cgroups提供了对一组进程及将来子进程的资源限制、控制和统计的能力.
+
+** 查看当前系统支持的cgroups的subsystem
+1. 安装cgroup工具
+   apt-get install cgroup-bin
+2. lssubsys -a  # 查看支持的subsystem
+
+** cgroups的三个组件
+1. cgroup是对进程分组管理的一种机制, 一个cgroup包含一组进程, 并可以在这个cgroup上增加subsystem
+   的各种参数配置
+2. subsystem是一组资源控制的模块, 一般包含如下几项:
+   blkio: 设置对块设备(如硬盘)输入输出的访问控制.
+   cpu: 设置cgroup中进程的cpu被调度的策略.
+   cpuacct: 统计cgroup中进程的cpu占用.
+   cpuset: 在多核机器上设置cgroup中进程可以使用的cpu和内存, 目前仅限NUMA架构
+   devices: 控制cgroup中进程对设备的访问
+   freezer: 用于挂起和恢复cgroup中的进程)
+   memory: 控制cgroup中进程的内存占用
+   net_cls: 将cgroup中进程产生的网络包分类, 以便linux的tc(traffic controller)可以根据分类区分出
+   来自某个cgroup的包并做限流
+   ns: 使cgroup中的进程在新的Namespace中fork新进程(NEWNS)时,创建出一个新的cgroup, 该新cgroup包含
+   新的Namespace中的进程
+
+   每个subsystem会关联到定义了相应限制的cgroup上, 并对这个cgroup中的进程做相应的限制和控制.
+   
+   lssubsys -a  # 查看kernel支持的subsystem
+3. hierarchy的功能是把一组cgroup串成一个树状的结构. 通过树状结构, cgroups可以做到继承.
+   例如: 系统对一组定时的任务进程通过cgroup1限制了cpu的使用率, 现在有另一个进程还需要限制磁盘IO
+   为了避免限制了磁盘IO影响其他进程, 就可以创建cgroup2, 使其继承cgroup1并限制磁盘的IO.
+
+三个组件的关系:
+1. 系统在创建了新的hierarchy之后, 系统中所有的进程都会加入这个hierarchy的cgroup根节点, 这个cgroup
+   根节点是hierarchy默认创建的.
+2. 一个subsystem只能附加在一个hierarchy上, 一个hierarchy可以附加多个subsystem
+3. 一个进程可以作为多个cgroup的成员, 但这些cgroup必须在不同的hierarchy中
+4. 一个进程fork出子进程时, 子进程是和父进程在同一个cgroup中的, 可以根据需要将其移动到其他的cgroup
+
+** cgroups的操作
+1. 首先创建并挂载一个hierarchy(cgroup树)
+   mkdir cgroup-test  # 创建一个hierarchy挂载点
+   mount -t cgroup -o none,name=<name> <whatyouwant> ./cgroup-test  # 挂载一个hierarchy
+
+   cgroup-test目录中的文件作用:
+   cgroup.clone_children: cpuset的subsystem会读取该配置文件, 如果值为1(默认为0), 子cgroup会
+   继承cgroup中的cpuset的配置.
+   
+   cgroup.proc: 树中当前节点cgroup中的进程组ID. 现在的位置是在根节点, 这个文件中会有现在系统中
+   所有进程组的ID.
+   
+   notify_on_release, release_agent: 一起使用, notify_on_release标识当这个cgroup最后一个进程
+   退出时是否执行release_agent, release_agent是一个路径, 通常用作进程退出之后自动清理掉不再
+   使用的cgroup.
+
+   tasks: 标识该cgroup下的进程ID, 如果将一个进程ID写入到tasks中, 便会将相应的进程加入到这个
+   cgroup中.
+2. 在刚刚创建的hierarchy上cgroup根节点扩展出两个子cgroup
+   cd cgroup-test
+   mkdir {cgroup1,cgroup2}
+3. 在cgroup中添加或移动进程
+   sh -c "echo $$ >> tasks"
+   cat /proc/<PID>/cgroup  # 查看加入的cgroup信息
+4. 通过subsystem限制cgroup中进程的资源
+   使用系统默认挂载的/sys/fs/cgroup/memory目录, 在该目录中创建一个目录: mkdir test-limit
+   cd test-limit
+   sh -c "echo '100' > memory.limit_in_bytes"
+   sh -c "echo $$ > tasks"
+5. 清除hierarchy
+   rmdir cgroup1
+
+** docker使用cgroups
+会在系统挂载的cgroups目录下新建一个docker目录, 然后会以每个容器的容器ID再建立一个目录.
+#+BEGIN_SRC go 示例代码
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path"
+	"strconv"
+	"syscall"
+)
+
+const cgroupMemoryHierarchyMount = "/sys/fs/cgroup/memory"
+
+func main() {
+	fmt.Println("Args[0]: ", os.Args[0])
+	if os.Args[0] == "/proc/self/exe" {
+		// 容器进程
+		fmt.Printf("current Pid: %d\n", syscall.Getpid())
+
+		cmd := exec.Command("sh", "-c", `stress --vm-bytes 200m --vm-keep -m 1`)
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			fmt.Println("quit: ", err)
+			os.Exit(1)
+		}
+	}
+
+	cmd := exec.Command("/proc/self/exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID |
+			syscall.CLONE_NEWNS,
+	}
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		fmt.Println("Error: ", err)
+		os.Exit(1)
+	} else {
+		// 得到fork出来进程映射在外部命名空间的pid
+		fmt.Printf("%v\n", cmd.Process.Pid)
+
+		// 在系统默认创建挂载了memory subsystem的Hierarchy上创建cgroup
+		os.Mkdir(path.Join(cgroupMemoryHierarchyMount, "testmemorylimit"), 0755)
+
+		// 将容器进程加入到这个cgroup种
+		ioutil.WriteFile(path.Join(cgroupMemoryHierarchyMount, "testmemorylimit", "tasks"),
+			[]byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+
+		// 限制cgroup进程使用
+		ioutil.WriteFile(path.Join(cgroupMemoryHierarchyMount, "testmemorylimit",
+			"memory.limit_in_bytes"), []byte("100m"), 0644)
+	}
+	cmd.Process.Wait()
+}
+#+END_SRC

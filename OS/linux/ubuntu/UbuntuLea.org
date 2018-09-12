@@ -1,2 +1,14 @@
 * Ubuntu终端显示中文乱码
 执行命令: sudo locale-gen zh_CN.UTF-8
+
+* Parallels Desktop安装Tools
+1. mount /dev/cdrom /mnt
+2. 执行./install命令
+
+Parallels 13.3.1+版本修复了Linux kernel 4.10+无法安装tools的问题.
+
+防止启动报错可以停止prltools_updater.service服务
+systemctl disable prltools_updater.service
+
+* Unable to locate package xx
+add-apt-repository universe
