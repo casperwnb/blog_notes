@@ -1,0 +1,53 @@
+* Python高效算法读书笔记
+** 读取3个矩阵A,B,C, 测试是否AB=C
+此例中输入格式如下: 第一个行包含一个唯一的整数n, 接下来的3n行, 每行包含n个被空格分隔的整数,
+这些行代表n*n矩阵A,B,C内包含的所有元素.
+
+如果使用矩阵的乘法来解决此问题, 需要o(n^3), 但有一个可能的解法, 复杂度为O(n^2). 即随机选择一个
+向量x, 并测试A(Bx) = Cx, 此方法叫做Freivalds比较算法. 如果计算以d为模, 错误的最大概率是1/d.
+这个概率在多次重复测试后可以变得极小. 例如代码:
+#+BEGIN_SRC python
+from random import randint
+from sys import stdin
+
+def readint():
+    return int(stdin.readline())
+
+def readarray(typ):
+    return list(map(typ, stdin.readline().split()))
+
+def readmatrix(n):
+    M = []
+    for _ in range(n):
+        row = readarray(int)
+        M.append(row)
+    return M
+
+def mult(M, N):
+    n = len(M)
+
+    return [sum(M[i][j] * v[j] for j in range(n)) for i in range(n)]
+
+def freivalds(A, B, C):
+    n = len(A)
+    x = [randint(0, 1000000) for j in range(n)]
+    return mult(A, mult(B, x)) == mult(C, x)
+
+if "__main__" == __name__:
+    n = readint
+    A = readmatrix(n)
+    B = readmatrix(n)
+    C = readmatrix(n)
+
+    print(freivalds(A, B, C))
+#+END_SRC
+
+** P/NP问题
+
+当c是一个常量且算法的复杂度是O(n^c), 则该算法的复杂度和n成多项式时间关系. 当一个问题存在
+一个算法解, 而且解的复杂度是多项式时间的时候, 该算法就是一个需要多项式时间解决的问题, 这类问题
+也叫做P问题.
+
+布尔可满足问题(k-SAT): 给定n个布尔型变量和m条语句, 每条语句包含k个符号(每个符号代表一个变量或其
+逆值变量), 是否有可能为每个变量负一个布尔值, 使得每条语句包含至少一个值为真的变量. 这类问题
+叫做NP问题.

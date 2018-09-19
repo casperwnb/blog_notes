@@ -4,4 +4,10 @@
 在容器内, 除了pid=1的进程, 其他进程不受docker控制. 其他进程是指通过exec进去之后启动的后台进程不
 受控制, 此处的控制是指它们的回收和生命周期管理.
 
+* 容器基础
+[[file:content/docker_base.org][容器基础知识]]
 
+* 构造容器
+[[file:content/buildmydocker.org][构造容器]]
+
+* kubernetes

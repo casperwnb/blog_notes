@@ -1,0 +1,433 @@
+* 类型断言
+** 类型断言
+类型断言是一个使用在接口上的操作, 语法形如: x.(T)
+
+如果断言操作的对象是一个nil接口值, 则不论被断言的类型是什么这个类型断言都会失败.
+
+* GoRoutines与Channels
+** 并发
+顺序通信进程(communicating sequential processes)也叫CSP, 是一种现代的并发编程模型, 这种编程模型
+中值会在不同的运行实例中(goroutine)中传递.
+
+** goroutines
+go中每一个并发的执行单元叫做一个goroutine. go程序启动时, 其主函数即在一个单独的goroutine中运行.
+叫做main goroutiine. 新的goroutine会用go语句来创建.
+
+主函数结束时, 所有的goroutine都会被退出. 除了主函数退出或者直接终止程序之外, 没有其他的编程
+方法能够让一个goroutine来打断另一个的执行, 但可以通过goroutine之间的通信来让一个goroutine请求
+其他的goroutine, 并让被请求的goroutine自行结束执行.
+
+** go的TCP服务端与客户端代码
+#+BEGIN_SRC go
+package main
+
+import (
+	"io"
+	"log"
+	"net"
+	"time"
+)
+
+func main() {
+    // 创建一个net.Listener对象, 该对象会监听一个网络端口上到来的连接.
+	listener, err := net.Listen("tcp", "localhost:8080")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for {
+        // Accept方法会阻塞, 直到一个新的连接被创建, 然后返回一个net.Conn对象
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		// handleConn(conn)  // 只能服务一个连接
+        go handleConn(conn)  // 可以服务多个连接
+        // go后跟的函数的参数会在go语句自身执行时被求值.
+        // 例如: go echo(c, input.Text(), time.Second) // input.Text()会在main goroutine中被求值
+	}
+}
+
+func handleConn(c net.Conn) {
+	defer c.Close()
+
+	for {
+        // Format方法提供了一种格式化日期和时间信息的方式. 它的参数是一个格式化模板标识如何来
+        // 格式化时间, 格式化模板限定为Mon Jan 2 03:04:05 PM 2006 UTC-0700共有8个部分.
+        // 可以以任意的形式来组合前面这个模板, 出现在模板中的部分会作为参考来对时间格式进行输出
+        // time包里定义了很多标准时间格式, 如time.RFC1123, 在进行格式化的逆向操作time.Parse时,
+        // 也会用到同样的策略.
+		_, err := io.WriteString(c, time.Now().Format("15:04:05\n"))
+		if err != nil {
+			return
+		}
+		time.Sleep(time.Second)
+	}
+}
+#+END_SRC
+运行这个程序之后, 可以使用netcat工具来执行网络连接操作.
+nc localhost 8080
+
+#+BEGIN_SRC go 客户端代码
+func main() {
+    conn, err := net.Dial("tcp", "localhost:8000")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer conn.Close()
+    mustCopy(os.Stdout, conn)
+}
+
+func mustCopy(dst io.Writer, src io.Reader) {
+    // Copy会一直读取数据, 直到遇到EOF或发生错误.
+    if _, err := io.Copy(dst, src); err != nil {
+        log.Fatal(err)
+    }
+}
+#+END_SRC
+
+** Channels
+一个不使用接收结果的接收操作也是合法的.
+对于一个关闭的channel执行发送操作将导致panic, 但可以执行接收操作.
+使用make创建channel时, 默认第二个参数的值为0,此时就是无缓冲的channel,
+当第二个参数的值大于1时, 就是带缓冲的channel.
+
+基于无缓存channel的发送和接收将导致两个goroutine做一次同步操作.
+
+** 串联的channel - pipeline
+不需要关闭每一个channel, 只要当需要告诉接受者goroutine, 所有的数据已经全部发送完成时才需要关闭
+channel. 一个没有被引用的channel(不管该channel是否已经关闭)会被GC自动回收.
+
+试图重复关闭一个channel将导致panic异常, 试图关闭一个nil值的channel也会导致panic, 关闭一个channel
+还会触发一个广播机制.
+#+BEGIN_SRC go
+func main() {
+    nums := make(chan int)
+    squares := make(chan int)
+
+    go func() {
+        for i:=1; i<5; i++ {
+            nums <- i
+        }
+        close(nums)  // 数据发送完毕, 关闭通道
+    }()
+
+    go func() {
+        for x := range nums {
+            squares <- x * x
+        }
+        close(squares)  // 数据计算完毕, 关闭通道
+    }()
+
+    for v := range squares {
+        fmt.Println(v)
+    }
+}
+#+END_SRC
+
+** 单向通道
+当一个channel作为一个函数参数时, 一般总是被用于只发送或只接受. 对一个只接收的channel调用close是
+一个编译错误.
+
+任何双向channel都可以自动转换为单向通道.
+
+func square(in <-chan int, out chan<-int) {} // in是接收通道, out是发送通道
+
+** 缓冲通道
+cap可以获取缓冲通道的大小, len返回缓冲通道中有效值的个数.
+#+BEGIN_SRC go
+func mirroredQuery() string {
+    responses := make(chan string, 3)
+    go func() { responses <- request("http://www.w1.com") }
+    go func() { responses <- request("http://www.w2.com") }
+    go func() { responses <- request("http://www.w3.com") }
+    return <-responses  // 返回最先获取的数据
+}
+func request(hostname string) (response string) {}
+#+END_SRC
+以上代码如果使用了无缓冲的channel, 则两个慢的goroutine将会因为没有人接受而被永远卡住, 此时就发生
+了goroutine泄漏, 这就在程序中隐藏了一个BUG. 泄漏的goroutine不会被自动回收.
+
+一个有goroutine泄漏bug的程序示例:
+#+BEGIN_SRC go
+func makePic(fname []string) error {
+    errors := make(chan error)
+    for _, f := range fname {
+        go func(f string) {
+            _, err := thumbnail.ImageFile(f)
+            errors <- err
+        }(f)
+    }
+
+    for range fname {
+        if err := <- errors; err != nil {
+            return err
+        }
+    }
+    return nil
+}
+#+END_SRC
+产生goroutine泄漏的原因: 当遇到第一个非nil的error时, 函数会直接将error返回给调用方, 此时没有
+一个goroutine去清空errors channel, 这样剩下的worker goroutine在向这个channel种发送值时, 都会
+被永远阻塞下去, 且永远不会退出.
+
+解决方法: 可以创建一个具有合适大小的缓冲通道(何为合适呢, 传入的长度为文件名slice的数组长度)
+另一个方法是创建另一个goroutine, 当main goroutine返回第一个错误的同时去排空error channel.
+
+为了知道最后一个goroutine什么时候结束, 需要一个递增的计数器, 在每个goroutine启动时加一,
+在goroutine退出时减一. 这需要一种特殊的计数器, 这个计数器需要在多个goroutine操作时做到安全并且
+提供在其减为0之前一直等待的一种方法, 这个计数类型被称为sync.WaitGroup, 例如:
+#+BEGIN_SRC go
+func makePic(fname <- chan string) int {
+    sizes := make(chan int64)
+    var wg sync.WaitGroup
+
+    for f := range fname {
+        wg.Add(1)
+        go func(f string) {
+            defer wg.Done()
+            thumb, err := thumbnail.ImageFile(f)
+            if err != nil {return}
+            info, _ := os.Stat(thumb)
+            sizes <- info.Size()
+        }(f)
+    }
+
+    // wait done to close sizes
+    go func() {
+        wg.Wait()
+        close(sizes)
+    }()
+
+    var total int64
+    for size := range sizes {
+        total += size
+    }
+    return total
+}
+#+END_SRC
+
+注意Add和Done方法的不对称,Add是为计数器加1,必须在work goroutine开始之前调用,而不是在goroutine中.
+
+** select多路复用
+#+BEGIN_SRC go  倒计时
+func main() {
+    fmt.Println("Commencing countdown")
+    tick := time.Tick(time.Second*1)  // 返回一个接受的通道, 执行间隔是传入的参数的值
+
+    abort := make(chan int)
+    go func() {
+        os.Stdin.Read(make([]byte, 1))
+        abort <- 1
+    }()
+
+    for countdown := 10; countdown > 0; countdown-- {
+        fmt.Println(countdown)
+        select {
+            case <-tick:
+            case <-abort:
+                fmt.Println("Abort")
+                return  // 此处会导致goroutine泄漏, 正确写法是使用time.NewTicker
+        }
+    }
+    fmt.Println("Countdown Done")
+}
+#+END_SRC
+Tick函数挺方便, 但只有当程序整个生命周期都需要这个时间时我们使用它才比较合适. 否则应该使用如下
+方式:
+ticker := time.NewTicker(1 * time.Second)
+<-ticker.C
+ticker.Stop()
+
+一个没有任何case的select语句写作 select{}, 会永远等待下去.
+#+BEGIN_SRC go
+func main() {
+    ch := make(chan int, 1)
+    for i:=0; i<10; i++ {
+        select {
+            case x := <-ch:
+                fmt.Println(x)  // 输出0, 2, 4, 6, 8. #DONE: 原因
+            case ch <- i:
+        }
+    }
+}
+#+END_SRC
+如果多个case同时就绪, select会随机选择一个执行.
+
+通过命令行参数的开关来输出详细信息: 工作原理是,
+如果命令行参数中给定-v, 则tick通道就不为nil, 因此select会命中, 反之当tick为nil时, select永远
+不会命中这个case.
+#+BEGIN_SRC go
+func main() {
+	var verbose = flag.Bool("v", false, "show verbose msg")
+	flag.Parse()
+
+	ch := make(chan int)
+	var tick <-chan time.Time
+	if *verbose {
+		tick = time.Tick(time.Second)
+	}
+
+	go func() {
+		for {
+			fmt.Println("Do Something")
+			time.Sleep(time.Second * 1)
+			ch <- 1
+		}
+	}()
+
+	for {
+		select {
+		case <-ch:
+		case <-tick:
+			fmt.Println("I'm Working")
+		}
+	}
+}
+#+END_SRC
+
+** 并发的退出
+不要向channel发送值, 而是用关闭一个channel来进行广播. 此代码就是通过关闭done通道来实现通知的.
+#+BEGIN_SRC go
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+)
+
+// 并行计算目录的大小
+var verbose = flag.Bool("v", false, "show verbose msg")
+
+func main() {
+	flag.Parse()
+
+	var tick <-chan time.Time
+	if *verbose {
+		tick = time.Tick(time.Second * 2)
+	}
+
+	// 从标准输入流读取内容
+	go func() {
+		os.Stdin.Read(make([]byte, 1))
+		close(done) // 关闭done通道, canclled会返回true
+	}()
+
+	roots := flag.Args()
+	if len(roots) == 0 {
+		roots = []string{"."}
+	}
+
+	fileSizes := make(chan int64)
+	var n sync.WaitGroup
+
+	for _, root := range roots {
+		n.Add(1)
+		go walkDir(root, &n, fileSizes)
+	}
+
+	go func() {
+		n.Wait()
+		close(fileSizes)
+	}()
+
+	var nfiles, nbytes int64
+loop:
+	for {
+		select {
+		case <-done:
+			for range fileSizes {
+			} // 清空fileSizes通道
+			panic("just for see stack")
+			return
+		case size, ok := <-fileSizes:
+			if !ok {
+				break loop
+			}
+			nfiles++
+			nbytes += size
+		case <-tick:
+			printDiskUsage(nfiles, nbytes)
+		}
+	}
+	printDiskUsage(nfiles, nbytes)
+
+}
+
+func printDiskUsage(nfiles, nbytes int64) {
+	fmt.Printf("%d files  %.1f MB\n", nfiles, float64(nbytes)/1e6)
+}
+
+func walkDir(dir string, n *sync.WaitGroup, fileSizes chan<- int64) {
+	defer n.Done()
+	if cancelled() {
+		return
+	}
+
+	for _, entry := range dirents(dir) {
+		if entry.IsDir() {
+			n.Add(1)
+			subdir := filepath.Join(dir, entry.Name())
+			go walkDir(subdir, n, fileSizes)
+		} else {
+			fileSizes <- entry.Size()
+		}
+	}
+}
+
+// 限制goroutine的个数, 最多20个
+var sema = make(chan int, 20)
+
+func dirents(dir string) []os.FileInfo {
+	select {
+	case sema <- 1:
+	case <-done:
+		return nil
+	}
+	defer func() { <-sema }()
+
+	// read direcotry的一种方法
+
+	entries, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	// read direcotry的另一种方法
+	/*
+		f, err := os.Open(dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "du: %v\n", err)
+			return nil
+		}
+		defer f.Close()
+
+		entries, err := f.Readdir(0)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "du: %v\n", err)
+		}
+	*/
+	return entries
+}
+
+// 退出goroutine
+var done = make(chan int)
+
+func cancelled() bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
+}
+#+END_SRC
+
+** 聊天程序
+P335 # TODO:

@@ -58,21 +58,6 @@ b "dep/lib2/flag"
 )
    #+END_SRC
    
-** 模块级私有 - internal包
-导入internal包的规则约束如下:
-1. internal包的源码文件必须在以"internal"命名的文件夹下
-2. 包名必须是 package internal
-3. 如果导入代码本身不在以"internal"目录的父目录为root的目录树中, 那么不允许其导入路径中包含
-   internal元素. 例如:
-   #+BEGIN_SRC text
-a/b/internal/
-a/b/c/
-a/b/d/
-a/c/f/
-以上目录结构中, 目录"c", "d"与"internal"目录同级, 因此在"c", "d"中可以导入internal包,
-目录f不能导入internal包
-   #+END_SRC
-   a/b/c/internal/d/e/f 只可以被以a/b/c为根目录树下的代码导入, 不能被a/b/g下的代码导入
 ** vendor目录
 Go1.5+之后, 可以从当前项目的vendor目录下导入包
 

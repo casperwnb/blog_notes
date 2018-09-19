@@ -1,5 +1,10 @@
 * GO基础知识
-[[file:contents/goBasic.org][Go基础知识]]
+[[file:contents/goBase.org][Go基础知识]]
+
+* Go高阶知识
+[[file:contents/goAdvance01.org][go高阶知识01]]
+[[file:contents/goAdvance02.org][go高阶知识02]]
+[[file:contents/goAdvance03.org][go高阶知识03]]
 
 * Go库
 [[file:contents/goLibrary.org][Go标准库]]

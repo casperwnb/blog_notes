@@ -1,0 +1,482 @@
+* 方法
+** 方法
+方法有接收器, 可以任意的选择接收器的名字, 接收器参数一般会在方法名之前出现.
+
+可以为一些简单的数值、字符串、slice、map来定义一些附加行为. 方法可以被声明到任意类型, 只要不是
+一个指针或一个interface.
+#+BEGIN_SRC go
+type P *int
+func(p P) f() {}  // 这样是不允许的
+#+END_SRC
+
+编译器会根据方法的名字以及接收器来决定具体调用的是哪一个函数.
+
+** 基于指针对象的方法
+在现实的程序中, 一般会约定如果Point这个类有一个指针作为接收器的方法, 那么所有Point的方法都必须有
+一个指针接收器.
+
+总结: 在每个合法的方法调用表达式中, 下面三种的任意一种情况都是可以的.
+1. 不论接收器的实际参数和接收器的形式参数相同, 如两者都是类型T或都是*T
+2. 接收器形参是T,实参是*T, 这种情况下编译器会隐式的取变量地址
+3. 形参是*T, 实参是T, 会隐式解引用.
+
+如果类型T的所有方法都是用T类型来做接收器, 则拷贝这种类型的实例就是安全的.
+如果一个方法使用指针作为接收器, 需要避免对其进行拷贝, 因为这样可能会破坏掉该类型内部的不变性.
+
+** nil也是一个合法的接收器类型
+在nil对于对象来说是合法的零值时, 如下:
+#+BEGIN_SRC go
+type IntList struct {
+    Value int
+    Tail *IntList
+}
+
+func (l *IntList) Sum() int {
+    if l == nil {
+        return 0
+    }
+    return l.Value + list.Tail.Sum()
+}
+#+END_SRC
+
+** 小trick
+#+BEGIN_SRC go
+var cache = struct {
+    sync.Mutex
+    mapping map[string]string
+}{mapping: make(map[string]string)}
+
+func Lookup(key string) string {
+    cache.Lock()
+    v := cache.mapping[key]
+    cache.UnLock()
+    return v
+}
+#+END_SRC
+这段小代码将两个包级别的变量放在了cache这个struct组内, 因此cache可以使用Mutex的Lock方法.
+** 方法值和方法表达式
+#+BEGIN_SRC go
+type Point struct {
+    X, Y int
+}
+func (p Point) Distance() {}
+p := Point{1, 2}
+pd = p.Distance  // pd就是一个函数"值"
+#+END_SRC
+在一个包的API需要一个函数值且调用方希望操作的是某一个绑定了对象的方法的话, 方法"值"会非常实用.
+如: time.AfterFunc(time.Second, func(){p.Distance()})可以简化为
+time.AfterFunc(time.Second, pd)
+
+与方法值相关的还有方法表达式, 当T是一个类型时, 方法表达式可能会写作T.f或(*T).f, 会返回一个函数"值"
+这种函数会将第一个参数用作接收器, 如:
+distance = Point.Distance
+distance(p)
+
+当根据一个变量来决定调用同一个类型的哪个函数时, 方法表达式就很有用了.
+#+BEGIN_SRC go
+func (p Point) Add(q Point) Point {return Point{p.X+q.X, p.Y+q.Y}
+func (p Point) Sub(q Point) Point {return Point(p.X-q.X, p.Y-q.Y)}
+
+type Path []Point
+
+func (path Path) TranslateBy(offset Point, add bool) {
+    var op = func(p, q Point) Point
+    if add {
+        op = Point.Add
+    } else {
+        op = Point.Sub
+    }
+
+   for i := range path {
+       path[i] = op(path[i], offset)
+   }
+}
+#+END_SRC
+
+** 示例 - bit数组
+#+BEGIN_SRC go
+package main
+
+import (
+	"bytes"
+	"fmt"
+)
+
+// An IntSet is a set of small non-negative integers.
+// Its Zero value represents the empty set.
+type IntSet struct {
+	words []uint64
+}
+
+// Has reports whether the set contains the non-negative value x
+func (s *IntSet) Has(x int) bool {
+	word, bit := x/64, uint(x%64)
+	return word < len(s.words) && s.words[word]&(1<<bit) != 0
+}
+
+// Add adds the non-negative value x to the set
+// 每个字都有64个二进制位, 所以为了定位x的bit位, 用x/64的商作为字的下标,
+// x%64得到的值作为这个字内的bit的所在位置.
+func (s *IntSet) Add(x int) {
+	word, bit := x/64, uint(x%64)
+	for word >= len(s.words) {
+		s.words = append(s.words, 0)
+	}
+	s.words[word] |= 1 << bit
+}
+
+// UnionWith sets s to the union of s and t
+func (s *IntSet) UnionWith(t *IntSet) {
+	for i, tword := range t.words {
+		if i < len(s.words) {
+			s.words[i] |= tword
+		} else {
+			s.words = apend(s.words, tword)
+		}
+	}
+}
+
+func (s *IntSet) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	for i, word := range s.words {
+		if word == 0 {
+			continue
+		}
+
+		for j := 0; j < 64; j++ {
+			if word&(1<<uint(j)) != 0 {
+				if buf.Len() > len("{") {
+					buf.WriteByte('}')
+				}
+				fmt.Fprintf(&buf, "%d", 64*i+j)
+			}
+		}
+	}
+	buf.WriteByte('}')
+	return buf.String()
+}
+#+END_SRC
+P224页, 没有看懂这个示例的作用.
+
+* 接口
+** 接口类型
+接口类型是一种抽象类型, 只会展示出它们自己的方法.
+接口类型也可以通过组合已经有的接口来定义.
+接口类型中的方法顺序不重要, 唯一重要的是这个集合里的方法.
+
+** 实现接口的条件
+一个类型如果拥有了一个接口需要的所有方法, 那么这个类型就实现了这个接口.
+
+T类型的值不拥有所有*T指针的方法. 例如:
+#+BEGIN_SRC go
+type IntSet struct {}
+func (s *IntSet) String() string
+var _ = IntSet{}.String()  // 编译错误, 不能在一个不能寻址的IntSet值上调用这个方法
+var s IntSet
+var _ = s.String()  // ok
+#+END_SRC
+
+interface{}称为空接口类型, 空接口类型对实现它的类型没有要求, 可以将任意一个值赋给空接口类型.
+
+可以在需要的时候定义一个新的抽象或特定特点的接口, 而不需要修改具体类型的定义.
+
+** flag.Value接口
+用于定义自己的命令行参数. 只需要实现flag.Value接口的类型.
+#+BEGIN_SRC go
+package flag
+type Value interface {
+    String() string  // 用在命令行帮助消息中, 每个flag.Value也是一个fmt.Stringer
+    Set(string) error  // 解析它的字符串参数并且更新标记变量的值.
+}
+#+END_SRC
+
+#+BEGIN_SRC go 示例代码
+package main
+
+import (
+	"flag"
+	"fmt"
+)
+
+type Celsius float64
+type Fahrenheit float64
+
+func CToF(c Celsius) Fahrenheit { return Fahrenheit(c*9.0/5.0 + 32.0) }
+func FToC(f Fahrenheit) Celsius { return Celsius((f - 32.0) * 5.0 / 9.0) }
+
+func (c Celsius) String() string { return fmt.Sprintf("%g°C", c) }
+
+type celsiusFlag struct{ Celsius }
+
+func (f *celsiusFlag) Set(s string) error {
+	var uint string
+	var value float64
+
+	// 从输入s中解析一个浮点数(value)和一个字符串(uint)
+	fmt.Sscanf(s, "%f%s", &value, &uint)
+	switch uint {
+	case "C", "°C":
+		f.Celsius = Celsius(value)
+		return nil
+	case "F", "°F":
+		f.Celsius = FToC(Fahrenheit(value))
+		return nil
+	}
+	return fmt.Errorf("invalid temperature %q", s)
+}
+
+// CelsiusFlag函数将所有逻辑封装在一起, 返回一个内嵌在celsiusFlag变量f中的Celsius指针给调用者
+// Celsius字段是一个会通过Set方法在标记处理的过程中更新的变量, 调用Var方法将标记加入应用的命令行
+// 标记集合中, 有异常复杂命令行接口的全局变量flag.CommandLine.Programs可能有几个这个类型的变量.
+// 调用Var方法将一个celsiusFlag参数赋值给一个flag.Value参数, 编译器会去检查celsiusFlag是否
+// 有必须的方法
+func CelsiusFlag(name string, value Celsius, usage string) *Celsius {
+	f := celsiusFlag{value}
+	flag.CommandLine.Var(&f, name, usage)
+	return &f.Celsius
+}
+
+func main() {
+	var temp = CelsiusFlag("temp", 20, "the temperature")
+	flag.Parse()
+	fmt.Println(*temp)
+}
+#+END_SRC
+
+** 接口值
+概念上讲一个接口的值, 由两部分组成, 一个具体的类型和那个类型的值. 这被称为接口的动态类型和动态值
+一个接口值可以持有任意大的动态值, 例如表示时间实例的time.Time类型, 这个类型有几个对外不公开的字段
+如:
+var x interface{} = time.Now()
+
+接口值可以使用"==", "!="来进行比较, 两个接口值相等仅当他们都是nil值或它们的动态类型相同并且动态
+值也根据这个动态类型的"=="操作相等. 如果两个接口值的动态类型相同, 但这个动态类型是不可比较的,
+此时比较两个接口时会报panic. 如:
+var x interface{} = []int{1, 2, 3}
+fmt.Println(x == x)  // panic
+
+** 一个包含nil指针的接口不是nil接口
+一个不包含任何值的nil接口值和一个刚好包含nil指针的接口值是不同的.
+#+BEGIN_SRC go
+const debug = true
+func main() {
+    var buf *bytes.Buffer
+    // 正确的代码是:
+    // var buf io.Writer
+    if debug {
+        buf = new(bytes.Buffer)
+    }
+    f(buf)
+}
+
+func f(out io.Writer) {
+    if out != nil {
+        out.Write([]byte("done!\n"))
+    }
+}
+#+END_SRC
+以上代码将debug设置为false时, 会引发panic. 原因是: 当main函数调用函数f时, 它给f函数的out赋了一个
+*bytes.Buffer的空指针, 所以out的动态值为nil, 动态类型是*bytes.Buffer. 即out变量是一个包含空指针
+值的非空接口, 所以防御性检查out != nil 的结果依然是true.
+
+此问题发生的原因在于: 一个nil的*bytes.Buffer指针有实现这个接口的方法, 它也不满足这个接口具体的
+行为上的要求, 特别是该调用违反了(*bytes.Buffer).Write方法的接受者非空的隐含先决条件.
+
+** sort.Interface接口
+sort包内置的提供了根据一些排序函数来对任何序列排序的功能. go中的sort.Sort函数不会对具体的序列和
+它的元素做任何假设, 它使用了一个接口类型sort.Interface来指定通用的排序算法和可能被排序到的序列
+类型之间的约定. 这个接口的实现由序列的具体表示和它希望排序的元素决定.
+#+BEGIN_SRC go sort.Interface的3个方法
+package sort
+type Interface interface {
+    Len() int
+    Less(i, j int) bool  // i, j are indices of sequence elements
+    Swap(i, j int)
+}
+#+END_SRC
+
+#+BEGIN_SRC go 排序
+type StringSlice []string
+
+func (s StringSlice) Len() int {
+	return len(s)
+}
+
+func (s StringSlice) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
+func (s StringSlice) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func main() {
+	var s = StringSlice{"Hello", "World", "Candice"}
+	sort.Sort(s)
+	fmt.Println(s)
+}
+#+END_SRC
+
+实现sort.Interface的具体类型不一定是切片类型.
+
+检查一个序列是否已经有序至少需要n-1次比较, sort包的IsSorted函数可以帮助做这样的检查.
+
+** http.Handler接口
+#+BEGIN_SRC go Handler接口定义
+package http
+
+type Handler interface {
+    ServeHTTP(w ResponseWriter, r *Request)
+}
+
+func ListenAndServe(address string, h Handler) error
+#+END_SRC
+
+ListenAndServe需要一个如: "localhost:8000"的服务器地址, 和一个所有请求都可以分派的Handler接口
+实例. 它会一直运行, 直到服务因为一个错误而失败, 它的返回值一定是一个非空的错误.
+#+BEGIN_SRC go
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+)
+
+func main() {
+	db := database{"shoes": 50, "socks": 5}
+	log.Fatal(http.ListenAndServe("localhost:8000", db))
+}
+
+type dollars float32
+
+func (d dollars) String() string {
+	return fmt.Sprintf("$%.2f", d)
+}
+
+type database map[string]dollars
+
+func (d database) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	switch req.URL.Path {
+	case "/list":
+		for item, price := range d {
+			fmt.Fprintf(w, "%s: %s\n", item, price)
+		}
+	case "/price":
+		item := req.URL.Query().Get("item")
+		price, ok := d[item]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, "no such item: %q\n", item)
+			return
+		}
+		fmt.Fprintf(w, "%s\n", price)
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "no such page: %s\n", req.URL)
+	}
+}
+#+END_SRC
+可以继续向ServeHTTP方法中添加case, 但这样比较繁琐. net/http包提供了一个请求多路器ServeMux来简化
+URL和handlers的联系. Go中没有一个权威的Web框架. 如下使用ServeMux代码:
+#+BEGIN_SRC go
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+)
+
+func main() {
+	db := database{"shoes": 50, "socks": 5}
+	mux := http.NewServeMux()
+
+    // http.HandlerFunc是一个转换而非一个函数调用, http.HandlerFunc是一个类型
+	mux.Handle("/list", http.HandlerFunc(db.list))
+	// mux.Handle("/price", http.HandlerFunc(db.price))
+    mux.HandleFunc("/price", db.price)
+
+	log.Fatal(http.ListenAndServe("localhost:8000", mux))
+}
+
+type dollars float32
+
+func (d dollars) String() string {
+	return fmt.Sprintf("$%.2f", d)
+}
+
+type database map[string]dollars
+
+func (d database) list(w http.ResponseWriter, req *http.Request) {
+	for item, price := range d {
+		fmt.Fprintf(w, "%s: %s\n", item, price)
+	}
+}
+func (d database) price(w http.ResponseWriter, req *http.Request) {
+	item := req.URL.Query().Get("item")
+	price, ok := d[item]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "no such item: %q\n", item)
+		return
+	}
+	fmt.Fprintf(w, "%s\n", price)
+}
+#+END_SRC
+
+HandlerFunc的类型定义如下:
+#+BEGIN_SRC go
+package http
+
+type HandlerFunc func(w ResponseWriter, r *Request)
+func (f HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
+    f(w, r)
+}
+#+END_SRC
+
+ServeHTTP方法的行为调用了它本身的函数, 因此HandlerFunc是一个让函数值满足一个接口的适配器.
+ServeMux有一个更方便的HandleFunc方法
+
+为了进一步简化代码, net/http包提供了一个全局的ServeMux实例DefaultServeMux和包级别的http.Handle
+和http.HandleFunc函数, 为了使用DefaultServeMux作为服务器的主handler, 可以给ListenAndServe函数
+的第二个参数传nil.
+#+BEGIN_SRC go
+func main() {
+    db := database{"shoes": 50, "socks": 5}
+	http.HandleFunc("/list", db.list)
+	http.HandleFunc("/price", db.price)
+
+	log.Fatal(http.ListenAndServe("localhost:8000", nil))
+}
+#+END_SRC
+
+** error接口
+#+BEGIN_SRC go
+type error interface {
+    Error() string
+}
+#+END_SRC
+
+创建error最简单的方法就是调用errors.New, 会根据传入的错误信息返回一个新的error. 如下:
+#+BEGIN_SRC go
+package errors
+
+func New(text string) error { return &errorString{text} }
+type errorString struct {text string}
+
+func (e *errorString) Error() string { return e.text }
+#+END_SRC
+fmt.Errorf封装了errors.New方法, 如下:
+#+BEGIN_SRC go
+package fmt
+
+import "errors"
+fucn Errorf(format string, args ...interface{}) error {
+    return errors.New(Sprintf(format, args...))
+}
+#+END_SRC
+
+* 示例: 表达式求值
+P263: 现在还无法明白这个程序.  # TODO

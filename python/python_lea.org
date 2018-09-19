@@ -455,6 +455,10 @@ def GetContent(msg, indent=0):
 
 * Python codesnippet
 [[file:codesnippet/readexcel.py][excel读取]]
+[[file:codesnippet/basecode.py][Python基础代码]]
+
+* Python高效算法读书笔记
+
 * Python 项目实战
 * 实现页面消息推送
 ** Server-Sent Events技术

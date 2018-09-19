@@ -1,0 +1,41 @@
+* 反射
+** 反射
+在运行时更新变量和检查他们的值、调用它们的方法和他们支持的内在操作, 但在编译时并不知道这些变量的
+具体类型.
+
+反射是一个复杂的内省技术, 不应该随意使用.
+最熟悉的例子就是fmt.Fprintf函数提供的字符串格式化处理逻辑, 可以对任意类型的值格式化并打印,
+并且支持用户自定义的类型.
+
+#+BEGIN_SRC go 一个简单的例子
+func MySprintf(x interface{}) string {
+    type stringer interface{
+        String() string
+    }
+
+    switch x := x.(type) {
+        case stringer:
+            return x.String()
+        case string:
+            return x
+        // ... 无穷无尽, 并且还无法支持用户自定义的数据, 此时就需要用到反射
+    }
+}
+#+END_SRC
+
+** reflect.Type和reflect.Value
+一个Type表示一个Go类型, 是一个接口, 有许多方法来区分类型和检查它们的组件.
+reflect.TypeOf接受任意的interface{}类型, 并返回对应动态类型的接口值.
+%T使用reflect.TypeOf的结果输出
+
+#+BEGIN_SRC go
+t := reflect.Typeof(3)
+fmt.Println(t.String())  // int
+fmt.Println(t)  // int
+#+END_SRC
+
+reflect.Type接口是满足fmt.Stringer接口的.
+
+reflect.Value可以持有一个任意类型的值, reflect.ValueOf接受任意的interface{}类型, 并返回对应动态
+类型的reflect.Value, reflect.Value也可以持有一个接口值.
+%v使用reflect.Value的结果输出.

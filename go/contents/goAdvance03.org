@@ -1,0 +1,325 @@
+* 基于共享变量的并发
+** 竞争条件
+一个线性(即只有一个goroutine)的程序中, 程序的执行顺序只由程序的逻辑来决定.
+
+一个函数在线性程序中可以正确的工作, 在并发的情况下, 依然可以正确的工作, 则这个函数就是并发安全的.
+并发安全的函数不需要额外的同步工作.
+
+竞争条件: 程序在多个goroutine交叉执行操作时, 没有给出正确的结果.
+无论任何时候, 只要有两个goroutine并发访问同一变量, 且至少其中的一个是写操作的时候就会发生数据竞争
+
+一个好的经验法则是: 根本没有什么良性数据竞争, 一定要避免数据竞争.
+
+三种方式避免数据竞争:
+1. 不要去写变量
+2. 避免从多个goroutine中访问变量. 一个提供对一个指定的变量通过channel来请求的goroutine叫做这个
+   变量的监控goroutine.
+   #+BEGIN_SRC go
+var deposits = make(chan int)
+var balances = make(chan int)
+
+func Deposit(amount int) {
+	deposits <- amount
+}
+func Balance() int {
+	return <-balances
+}
+
+func teller() {
+	var balance int
+	for {
+		select {
+		case amount := <-deposits:
+			balance += amount
+		case balances <- balance:
+		}
+	}
+}
+
+func init() {
+	go teller()  // 将修改操作限制在了teller routine中
+}
+
+func main() {
+	go Deposit(100)
+	Deposit(200)
+	Deposit(200)
+	fmt.Println(Balance())
+}
+   #+END_SRC
+   即使当一个变量无法在其整个生命周期内被绑定到一个独立的goroutine中, 绑定依然是并发访问的一个解决
+   方案, 例如在一条流水线上的goroutine之间共享变量. 在这两者间会通过channel来传输地址信息. 如果
+   流水线的每个阶段都能避免在将变量传送到下一阶段时再去访问它, 则这个变量的所有访问就是线性的.
+   这种规则被称为串行绑定.
+#+BEGIN_SRC go
+type Cake struct { state string }
+func baker(cooked chan <- *Cake) {
+    for {
+        cake := new(Cake)
+        cake.state = "cooked"
+        cooked <- cake
+    }
+}
+
+func icer(iced chan<- *Cake, cooked <-chan *Cake) {
+    for cake := range cooked {
+        cake.state = "iced"
+        iced <- cake
+    }
+}
+#+END_SRC
+
+3. 允许很多goroutine访问变量, 但在同一时刻最多只有一个goroutine在访问, 这被称为互斥.
+** sync.Mutex互斥锁
+可以用一个容量只有1的缓冲channel来保证最多只有一个goroutine在同一时刻访问一个共享变量. 一个只能为
+0和1的信号量叫做二元信号量, 别sync.Mutext直接支持.
+按惯例, mutex所保护的变量是在mutex变量声明之后立刻声明的.
+Lock和Unlock之间的代码叫做临界区.
+这种函数、互斥锁和变量的编排方式叫做监控.
+#+BEGIN_SRC go
+var sema = make(chan int, 1)
+
+var mu sync.Mutex
+var balance int
+
+func Deposit(amount int) {
+    sema <- 1  // <=> mu.Lock()
+    balance += amount
+    <- sema  // <=> mu.Unlock() <=> defer mu.Unlock()
+}
+
+func Balance() int {
+    sema <- 1
+    b := balance
+    <- sema
+    return b
+}
+
+func main() {
+    go Deposit(1)
+    go Deposit(2)
+    go Deposit(3)
+    time.Sleep(time.Second)
+    fmt.Println(Balance())
+}
+#+END_SRC
+** sync.RWMutex读写锁
+允许多个只读操作并行执行, 但写操作会完全互斥. 这叫做多读单写锁.
+
+所有的并发问题都可以用一致的、简单的既定模式来规避. 可能的话将变量限制在goroutine内部, 如果是
+多个goroutine都需要访问的变量, 使用互斥条件来访问.
+
+** sync.Once初始化
+用于解决一次性初始化的问题. 需要一个互斥量mutex和一个boolean变量来记录初始化是不是已经完成了.
+互斥量用来包含boolean变量和客户端数据结构, Do需要接收初始化函数作为其参数. 例如:
+#+BEGIN_SRC go
+var mu sync.RWMutex
+var icons map[string]image.Image
+
+func Icon(name string) image.Image {
+    mu.RLock()
+    if icons != nil {
+        icon := icons[name]
+        mu.RUnlock()
+        return icon
+    }
+    mu.RUnlock()
+    mu.Lock()
+    if icons == nil {
+        loadIcons()
+    }
+    icon := icon[name]
+    mu.Unlock()
+    return icon
+}
+
+// 等价于
+var loadIconsOnce sync.Once
+var icons map[string]image.Image
+
+func Icon(name string) image.Image {
+    loadIconsOnce.Do(loadIcons) // loadIcons是一个函数.
+    return icons[name]
+}
+#+END_SRC
+
+** 竞争检查器
+go的runtime和工具链提供了复杂和好用的动态分析工具.
+
+在go build, go run, go test后加上-reace. 
+
+** 示例 - 并发的非阻塞缓存
+P359  #TODO: know a little
+
+* Goroutines和线程
+** 动态栈
+每个OS线程都有一个固定大小的内存块(一般是2M)来做栈. 一个goroutine会以一个很小的栈开始其生命周期,
+一般只需要2K. 一个goroutine的栈和操作系统线程一样, 会保存其活跃或挂起的函数调用的本地变量. 一个
+goroutine的栈的大小是不固定的, 可以动态的伸缩.
+
+** goroutine调度
+OS线程会被操作系统内核调度, 每几毫秒, 一个硬件计时器会中断处理器, 此时会调用scheduler内核函数.
+
+GO的运行时包含了自己的调度器, 该调度器使用了一些技术手段, 比如m:n调度, 因为其会在n个OS系统
+线程上多工(调度)m个goroutine. Go调度器的工作和内核的调度是相似的, 但该调度器只关注单独的Go程序
+中的goroutine.
+
+go调度器并不是一个硬件定时器而是被Go语言本身进行调度的. 此调度不需要进入内核的上下文, 所以重新
+调度一个goroutine比调度一个线程代价要小很多.
+
+** GOMAXPROCS
+该变量决定会有多少个OS线程同时执行go代码. 其默认是CPU的核心数. GOMAXPROCS就是前面说的m:n中的n.
+
+在休眠中或者通信中被阻塞的goroutine是不需要一个对应的线程来做调度的, 在I/O中或系统调用中或调用
+非go语言函数时, 是需要一个对应的OS系统线程的, 但GOMAXPROCS并不需要将这几种情况计算在内.
+
+goroutine是被调度到OS线程上执行的.
+
+* 包
+** 介绍
+go list std | wc -l  # 查看标准包的具体数目
+
+go语言编译速度快的原因有:
+1. 所有导入包必须在每个文件的开头显式声明, 这样编译器就没有必要读取和分析整个源文件来判断包
+   的依赖关系.
+2. 禁止包的环状依赖, 因此包的依赖关系就是一个有向无环图, 每个包可以被独立编译, 且可以并发编译
+3. 编译后包的目标文件不仅仅记录包本身的导出信息, 目标文件同时还记录了包的依赖关系. 在编译一个包
+   的时候只需要读取每个直接导入包的目标文件, 而不需要遍历所有依赖的文件.
+
+** 包导入
+导入包的重命名只影响当前的源文件, 其他的源文件如果导入了相同的包, 可以使用默认的导入也可以重命名
+为另一个名字.
+
+** 内部包
+go语言的构建工具对包含internal名字的路径段的包导入路径做了特殊处理, 这种包叫做internal包.
+
+导入internal包的规则约束如下:
+1. internal包的源码文件必须在以"internal"命名的文件夹下
+2. 包名必须是 package internal
+3. 如果导入代码本身不在以"internal"目录的父目录为root的目录树中, 那么不允许其导入路径中包含
+   internal元素. 例如:
+   #+BEGIN_SRC text
+a/b/internal/x.go
+a/b/c/x.go
+a/b/d/x.go
+a/c/f/x.go
+a/b/x.go
+以上目录结构中, 目录"c", "d"与"internal"目录同级, 因此在"c", "d"中可以导入internal包,
+目录f不能导入internal包, a/b/x.go也可以导入internal包.
+   #+END_SRC
+   a/b/c/internal/d/e/f 只可以被以a/b/c为根目录树下的代码导入, 不能被a/b/g下的代码导入.
+   总结: 只有与internal目录同级或internal同级目录的子目录才能导入
+
+* Go工具
+** 介绍
+go工具可以看做是一个包管理器(类似于apt和rpm), 用于包的查询、计算包依赖、从远程版本控制系统下载.
+它也是一个构建系统, 计算文件的依赖关系, 然后调用编辑器、汇编器和连接器构建程序, 也是一个单元
+测试和基准测试的驱动程序.
+
+** 环境变量
+GOOS: 指定目标操作系统, 如android, linux, darwin, windows
+GOARCH: 指定处理器的类型, 如amd64, 386或arm
+
+** 工具命令
+godoc -http :8000  # 在本地启动go的帮助信息
+
+go list:
+go list github.com/go-sql-driver/mysql  # 查询可用包的信息
+go list ...  # 匹配任意的包导入路径
+go list gopl.io/ch3/...  # 特定子目录下的所有包
+go list ...xml...  # 和某个主题相关的所有包
+go list -json xxx  # 以json的格式输出信息
+-f 参数允许用户使用text/template包的模板语言定义输出文本的格式, 如:
+go list -f '{{.ImportPath}} -> {{join .Imports " ""}}' xxx/...
+go list -f={{.TestGoFiles}} net  # 查看net包的内部测试代码
+go list -f={{.XTestGoFiles}} net  # 查看net包的扩展测试代码
+
+* 测试
+** go test
+在包目录内, 所有以_test.go为后缀名的源文件是go test测试的一部分.
+在*_test.go文件中, 有三类函数: 测试函数、基准测试函数、示例函数.
+
+测试函数以Test为函数名前缀, 用于测试函数并报告测试结果是PASS或FAIL
+基准测试函数以Benchmark为前缀, 用于衡量一些函数的性能
+示例函数以Example为前缀, 提供一个由编译器保证正确执行的示例文档.
+
+每个测试函数必须导入testing包, 示例如下:
+#+BEGIN_SRC go
+func TestName(t *testing.T) {
+    if xxx {
+        t.Error("xxxx")
+        // t.Errorf("xx")  // 测试失败时不会停止后续数据的测试
+        t.Fatal("xx")  // 测试失败后停止后续数据的测试, 必须在和测试函数同一个goroutine内调用
+    }
+}
+#+END_SRC
+
+go test命令默认采用当前目录对应的包.
+go test -v  # 用于打印每个测试函数的名字和运行时间
+go test -v -run="French|Canal"  # -run对应一个正则表达式, 只有正确匹配的测试函数才会被执行
+
+** 测试一个命令
+main包可以作为一个包被测试器代码导入. 例如:
+#+BEGIN_SRC go
+// main.go
+package main
+func echo() {
+    fmt.Println("main.echo")
+}
+
+// main_test.go
+package main
+
+func Testecho() {
+    echo()
+}
+#+END_SRC
+
+** 白盒测试
+黑盒测试只需要测试包公开的文档和API行为, 内部实现对测试代码是透明的.
+白盒测试有访问包内部函数和数据结构的权限, 因此可以做到普通客户端无法实现的测试.
+
+白盒和黑盒测试是互补的. 白盒测试可以对内部的一些棘手的实现提供更多的测试覆盖.
+P407
+
+** 扩展测试包
+P411.
+
+考虑: net/url包, 提供了URL解析的功能. net/http包, 提供了web服务和HTTP客户端的功能.
+上层的net/http包依赖下层的net/url包, 然后net/url包中的一个测试是演示不同URL和HTTP客户端的交互
+行为, 也就是说, 一个层包的测试代码导入了上层的包. 这样的行为会导致循环依赖.
+
+此时可以通过测试扩展包的方式来解决循环依赖的问题.
+可以参考net/url/example_test.go文件. 在该文件中声明的包为"url_test", 然后导入了net/url包.
+
+** 测试覆盖率
+1. 首先要确保所有的测试都正常通过
+   go test -v -run=Coverage xx
+2. 使用go tool命令
+   go test -run=Converage -converprofile=c.out xxx  # 重新运行测试
+3. 生成HTML报告
+   go tool cover -html=c.out
+   
+** 基准测试
+#+BEGIN_SRC go
+func BenchmarkXXX(b *testing.B) {
+    for i := 0; i<b.N; i++ {
+    }
+}
+#+END_SRC
+默认情况下不运行任何基准测试, 需要通过-bench命令行标志参数手工指定. 该参数是一个正则表达式,
+用于匹配要执行的基准测试函数的名字, 默认值为空, "."将匹配所有的基准测试.
+
+循环在基准测试函数内实现, 而不是放在基准测试框架内实现. 这样可以让每个基准测试函数有机会在循环
+启动前执行初始化代码, 这样并不会显著影响每次迭代的平均运行时间.
+
+go test -bench=. -benchmem  # -benchmem命令行标志参数将在报告中包含内存的分配数据统计.
+go test -cpuprofile=cpu.out  # 输出cpu的使用信息
+go test -blockprofile=block.out
+go test -memprofile=mem.out
+
+go的runtime运行时包提供了程序运行时控制分析特性的接口. 一旦收集到了用于分析的采样数据, 就可以
+使用pprof来分析这些数据.
+
+go tool pprof
+

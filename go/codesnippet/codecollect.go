@@ -58,3 +58,134 @@ flag.Parse()  // 解析命令行参数
 fmt.Println(*n)
 fmt.Println(flag.Args())  // 访问非标志参数的普通命令行参数.
 
+var buf bytes.Buffer
+buf.WriteByte('[')
+buf.WriteRune('你')
+
+var a int
+fmt.Scanf("%d", &a)  // 从标准输入中读取数据
+
+// slice内存技巧, 公用同一个底层数组
+// 1. 翻转
+func reverse(data []string) []string {
+	for i, j := 0, len(data)-1; i < j; i, j = i+1, j-1 {
+		data[i], data[j] = data[j], data[i]
+	}
+}
+
+// 2. 去空
+func noempty1(data []string) []string {
+	i := 0
+	for _, s := range data {
+		if s != "" {
+			data[i] = s
+			i++
+		}
+	}
+	return data[:i]
+}
+func noempty2(data []string) []string {
+	out := strings[:0] // zero-length slice
+	for _, s := range strings {
+		if s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// 删除slice中间某个元素, 并保证顺序不变
+func remove(slice []int, idx int) []int {
+	copy(slice[i:] slice[i+1:])
+	return slice[:len(slice)-1]
+}
+
+// 删除slice中间某个元素, 不保证顺序
+func remove(slice []int, idx int) []int {
+	slice[idx] = slice[len(slice)-1]  // 用最后一个元素替换删除的元素.
+	return slice[:len(slice)-1]
+}
+
+in := bufio.NewReader(os.Stdin)
+for {
+	r, n, err := in.ReadRune()  // return rune, nbytes, error
+	if r == unicode.ReplacementChar && n == 1 {
+		fmt.Println("read a invalid character")
+	}
+}
+
+// 使用深度优先搜索完成前置课程的排序
+package main
+
+import (
+	"fmt"
+	"sort"
+)
+
+var prereqs = map[string][]string{
+	"algorithms": {"data structures"},
+	"calculus":   {"linear algebra"},
+	"compilers": {
+		"data structures",
+		"formal languages",
+		"computer organization",
+	},
+	"data structures":       {"discrete math"},
+	"databases":             {"data structures"},
+	"discrete math":         {"intro to programming"},
+	"formal languages":      {"discrete math"},
+	"networks":              {"operating systems"},
+	"operating systems":     {"data structures", "computer organization"},
+	"programming languages": {"data structures", "computer organization"},
+}
+
+func topoSort(m map[string][]string) []string {
+	var order []string
+
+	seen := make(map[string]bool)
+	var visitAll func(items []string)
+
+	visitAll = func(items []string) {
+		for _, item := range items {
+			if !seen[item] {
+				seen[item] = true
+				visitAll(m[item])
+				order = append(order, item)
+			}
+		}
+	}
+
+	var keys []string
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	visitAll(keys)
+	return order
+}
+
+func main() {
+	for i, course := range topoSort(prereqs) {
+		fmt.Printf("%d: %s\n", i+1, course)
+	}
+}
+
+// 遍历目录
+func walkDir(dir string) {
+	entries, err := ioutil.ReadDir(dir)  // 返回一个os.FileInfo类型的slice
+	// os.State函数也会返回这个值.
+	if err != nil {
+		fmt.Println("Error")
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			walkDir(filepath.Join(dir, entry.Name()))
+		} else {
+			fmt.Println(filepath.Join(dir, entry.Name()))
+		}
+	}
+	
+}
+
