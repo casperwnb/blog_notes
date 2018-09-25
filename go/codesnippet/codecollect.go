@@ -54,8 +54,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 // 第一个参数: 命令行标志参数的名字, 默认值, 帮组信息
 var n = flag.Bool("n", false, "omit trailing newline")
-flag.Parse()  // 解析命令行参数
-fmt.Println(*n)
+var name string
+flag.StringVal(&name, "name", "casper", "name comment")
+flag.Parse()  // 解析命令行参数, 并把它们的值赋给相应的变量
+fmt.Println(*n, name)
 fmt.Println(flag.Args())  // 访问非标志参数的普通命令行参数.
 
 var buf bytes.Buffer

@@ -1,3 +1,130 @@
+* kubernetes
+** 架构图
+[[file:~/Learn_space/blog_notes/cloud/images/kubuernetes_frame.png][kubernetes架构图]]
+
+kubernetes项目的架构由Master和Node两种节点组成, 分别对应着控制节点和计算节点.
+
+控制节点(Master节点)由3个紧密协作的独立组件组合而成, 分别是负责API服务的kube-apiserver、负责调度
+的kube-scheduler、负责容器编排的kube-controller-manager. 整个集群的持久化数据则由kube-apiserver
+处理后保存在etcd中.
+
+计算节点上最核心的部分是: kubelet组件. kubelet主要负责同容器运行时打交道. 该交互所依赖的是一个
+称作CRI(container Runtime Interface)的远程调用接口, 这个接口定义了容器运行时的各项核心操作, 如
+启动一个容器需要的所有参数.
+基于此只要容器运行时能够运行标准的容器镜像, 就可以通过实现CRI接入到kubernetes项目中.
+而具体的容器运行时比如docker项目, 则一般通过OCI容器运行时规范同底层的Linux操作系统进行交互.
+
+kubelet还通过gRPC协议同一个叫做Device Plugin的插件进行交互. 该插件是kubernetes项目用来管理GPU等
+宿主机物理设备的主要组件, 也是基于kubernetes项目进行机器学习训练、高性能作业支持等工作必须关注
+的能力.
+
+kubelet还可以调用网络插件和存储插件为容器配置网络和持久化存储. 这个两个插件与kubelet进行交互的
+接口分别是CNI(container networking interface)和CSI(container storage interface).
+
+运行在大规模集群中的各种任务之间, 实际上存在这各种各样的关系, 这些关系的处理才是作业编排和管理
+系统最困难的地方.
+
+kubernetes项目最主要的设计思想是从更宏观的角度, 以统一的方式来定义任务之间的各种关系, 并且为将来
+支持更多种类的关系留有余地.
+
+围绕容器和Pod不断向真实的技术场景扩展, 可以摸索出[[file:~/Learn_space/blog_notes/cloud/images/kubernetes_fullscreen.png][kubernetes项目核心功能的"全景图"]].
+
+kubernetes项目中, 推崇的做法是:
+1. 通过一个"编排对象", 如Pod, Job, CronJob等来描述视图管理的应用
+2. 再为它定义一些"服务对象", 比如: service, secret, horizontal pod autoscaler(自动水平扩展器)等
+这种使用方法就是所谓的"声明式API", 这种API对应的"编排对象"和"服务对象"都是kubernetes项目中的API
+对象(API Object). 这就是kubernetes最核心的设计理念.
+
+** Pod
+Pod 是kubernetes中最基础的一个对象, pod里的容器共享同一个network namespace、同一组数据卷, 从而
+达到高效率交换信息的目的.
+
+** service
+service服务声明的IP地址等信息是"终生不变"的, 这个Service服务的主要作用就是作为Pod的代理入口(
+portal), 从而代替Pod对外暴露一个固定的网络地址.
+
+** secret
+这是保存在etcd里的键值对数据, 将credential(数据库的用户名和密码)信息以secret的方式存在etcd里,
+kubernetes就会在指定的pod启动时, 自动把secret里的数据以volume的方式挂载到容器里, 此时web应用
+就可以访问数据库了.
+
+** Job
+Job用来描述一次性运行的Pod(如: 大数据任务).
+DaemonSet用来描述每个宿主机上必须且只能运行一个副本的守护进程服务器.
+CronJob用于描述定时任务.
+
 * kubeadm
 ** 介绍
-kubeadm是一个容器部署工具.
+kubeadm是一个容器部署工具. [[https://github.com/kubernetes/kubeadm][github地址]]
+
+** 安装
+kubeadm把kubelet直接运行在宿主机上, 然后使用容器部署其他的kubernetes组件.
+
+1. apt update && apt install -y apt-transport-https
+2. curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+3. cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+   deb http://apt.kubernetes.io/ kubernetes-xenial main
+   EOF
+4. apt update
+5. apt install -y docker-ce kubeadm
+
+** kubeadm init原理
+1. kubeadm首先是一系列的检查工作, 以确定这台机器可以用来部署kubernetes, 这一步检查称为"Preflight
+   Checkes". 其检查包括了很多方面, 如:
+   a. Linux内核的版本必须是否是3.10+
+   b. Linux Cgroups模块是否可用
+   c. 机器的hosname是否标准. kubernetes项目中, 机器的名字以及一切存储在etcd中的api对象, 都必须使用
+   标准的DNS命名(RFC 1123)
+   d. 用户安装的kubeadm和kubelet的版本是否匹配
+   e. 机器上是否已经安装了kubernetes的二进制文件
+   f. kubernetes的工作端口10250/10251/10252端口是否已经被占用
+   g. ip, mount等Linux命令是否存在
+   h. docker是否已经安装
+   i. ...
+2. 通过Preflight Checkes之后, kubeadm是生成kubernetes对外提供服务所需的各种证书和对应的目录.
+   kubernetes对外提供服务器时, 除非专门开启"不安全模式", 否则都要通过HTTPS才能访问kube-apiserver.
+   kubeadm为kubernetes生成的证书文件都放在master节点的/etc/kubernetes/pki目录下.
+   kubecl获取容器日志等streaming时, 需要通过kube-apiserver向kubelet发起请求,
+   这个连接也必须是安全的, kubeadm为这一步生成的是apiserver-kubelet-client.crt文件,
+   对应的私钥是:apiserver-kubelet-client.key, 可以选择不让kubeadm生成这些证书,
+   而是拷贝现有的证书到/etc/kubernetes/pki目录下
+3. 证书生成之后,kubedam会为其他组件生成范文kube-apiserver所需的配置文件,
+   路径是:/etc/kubernetes/xx.conf
+
+4. 然后kubeadm会为master组件生成pod配置文件.
+   在kubernetes中, 有一种特殊的容器启动方法叫做"Static Pod", 允许把要部署的Pod的YAML文件
+   放在一个指定的目录里, 这样当kubelet启动时, 会自动检查这个目录, 加载所有的Pod YAML文件,
+   然后在这台机器上启动它
+
+   kubelet在kubernetes项目中的地位非常高, 在设计上它就是一个独立的组件.
+
+   在kubeadm中, Master组件的YAML文件会被生成在/etc/kubernetes/manifests路径下.
+   一旦这些YAML文件出现在被kubelet监视的/etc/kubernetes/manifests路径下, kubelet就会自动创建
+   这些YAML文件中定义的POD, 即master组件的容器.
+5. kubeadm就会为集群生成一个bootstrap token
+   只要持有这个token, 任何一个安装了kubelet和kubadm的节点, 都可以通过kubeadm join加入集群.
+6. token生成后, kubeadm会将ca.crt等master节点的重要信息, 通过configmap的方式保存在etcd当中,
+   供后续部署Node节点使用, 这个configmap的名字就是cluster-info
+7. kubeadm init的最后一步, 就是安装默认插件. kubernetes默认kube-proxy和DNS这个插件是必须安装的.
+   分别用来提供整个集群的服务发现和DNS功能.
+
+** kubeadm join的工作流
+kubeadmin join为什么需要这样一个token呢?
+因为任何一台机器想要成为kubernetes集群中的一个节点, 就必须在集群的kube-apiserver上注册, 要想
+跟apiserver打交道, 这台机器就必须要获取到相应的证书文件. kubeadm至少需要发起一次"不安全模式"的
+访问到kube-apiserver, 从而拿到保存在configmap中的cluster-info(保存了apiserver的授权信息), 而
+bootstrap token扮演的就是这个过程中的安全验证的角色.
+
+一旦有了cluster-info里的kube-apiserver的地址、端口、证书, kubelet就可以以"安全模式"连接到
+apiserver上, 这样一个新的节点就部署完成了.
+
+** 使用
+kubeadm init  # 创建一个master节点
+kubeadm join <master节点的ip和端口>  # 将一个Node加入到当前集群中.
+
+** 配置kubeadm的部署参数
+部署master节点时, 可以使用下面这条指令:
+kubeadm init --config kubeadm.yaml  # 通过提供一个YAML文件来创建
+
+kubeadm就会使用上面这些信息替换/etc/kubernetes/manifests/kube-apiserver.yaml里的cmmand字段
+里的参数了.

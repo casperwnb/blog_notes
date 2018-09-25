@@ -1,8 +1,4 @@
 * GO学习笔记
-** GOPATH
-GOPATH的值可以是一个目录的路径, 也可以包含多个目录路径. 每个目录都代表go语言的一个工作区.
-这些工作区用于放置go语言的源码文件, 以及安装后的归档文件和可执行文件.
-
 ** go 标准命令概述
 [[https://github.com/GoHackers/go_command_tutorial][Go命令教程web链接]]
 
@@ -25,57 +21,11 @@ net/http/pprof程序来生成.
 
 godoc -http=:9090  # 在本机启动go doc服务
 
-** go build
-go build -a  # 强制编译
-go build -x  # 查看go build命令具体都执行了哪些操作
-go build -n  # 只查看具体执行的操作, 而不真的执行
-go build -v  # 查看go build命令编译的代码包名称
-
-** 代码包
-[[https://github.com/hyper0x/go_command_tutorial/blob/master/0.3.md][web参考链接]]
-
-对代码包的远程导入路径进行自定义的方法是: 在该代码包中的库源码文件的包声明语句的右边加入导入注释
-如:
-#+BEGIN_SRC go
-package semaphore // import "golang.org/x/sync/semaphore"
-#+END_SRC
-
-[[https://github.com/hyper0x/go_command_tutorial/blob/master/0.3.md][自定义代码包导入路径说明-web链接]]
-
-*** 思考题
-1. 如果需要导入两个代码包, 这两个代码包的导入路径的最后一级是相同的, 会导致冲突吗?
-   答: 分情况讨论
-   例如:导入路径为"dep/lib/flag"和"dep/lib2/flag", 如果这两个路径中的包的命名不一样,
-   则不会引发冲突, 即假设dep/lib/flag中的包名为flag1, dep/lib2/flag中的包名为flag2,
-   在导入时其实go编译器已经将其区分开了, 对于dep/lib/flag中的包的调用需要时flag1.XX,
-   dep/lib2/flag中包的调用需要使用flag2.XX
-
-   如果这两个路径中的包的命名一样, 则就会引发冲突, 解决方法就是导入时使用别名,
-   #+BEGIN_SRC go
-import (
-a "dep/lib/flag"
-b "dep/lib2/flag"
-)
-   #+END_SRC
-   
 ** vendor目录
 Go1.5+之后, 可以从当前项目的vendor目录下导入包
 
 ** 基本语法
 #+BEGIN_SRC go
-counts := make(map[string]int)  //声明一个字典, 键为string, 值为int
-
-// 从命令行中读取数据
-input := bufio.NewScanner(os.Stdin)
-for input.Scan() {
-    counts[input.Text()] ++;
-}
-
-// 声明一个Point结构体
-type Point struct {
-    x, y int
-}
-
 // 遍历字符串时, 其每个字符的类型是rune类型, 该类型是一个int32的数
 var name = "你好"
 for _, c := range name {
@@ -86,28 +36,10 @@ for i := range name {
 }
 #+END_SRC
 
-
-
-go中, 返回函数中的局部变量的地址也是安全的.
-
 go中, 如果两个类型有着相同的底层类型, 但他们是不同的数据类型, 因此不能被相互比较或混在一个表达式
 运算. 对于每个类型T, 都有一个对应的类型转换操作T(x), 用于将x转换为T类型.
 注意: 如果T是指针类型可能会需要用小括号包装T, 如(*int)(0). 只有当两个类型的底层基础类型相同时,
 才允许这种转型操作, 或者两者都是指向相同底层结构的指针类型, 这些转换只改变类型而不会影响值本身.
-
-类型转换注意事项:
-1. 对于整数类型值、整数常理之间的类型转换, 原则上只要源值在目标类型的可表示范围内就是合法的.
-   但需要注意的是, 源整数类型的可表示范围较大, 而目标类型的可表示范围较小, 此时会将高位截断.
-   需要记住: 当整数值的类型的有效范围由宽变窄时, 需要在补码形式下截掉一定数量的高位二进制数
-2. 可以将一个整数值转换为一个string类型的值, 但被转换的整数值应该可以代表一个有效的Unicode码
-   点, 否则转换结果是"�", 该符号的Unicode码点是U+FFFD, 是Unicode标准中定义的Replacement
-   Character, 用于替换那些未知的、不被认可的以及无法展示的字符. 可以参考unicode编码规范.
-   
-3. 关于string类型与各种切片类型之间的互转
-   一个值在从string类型向[]byte类型转换时代表着以UTF-8编码的字符串会被拆分成零散、独立的字节.
-   除了与ASCII编码兼容的那部分字符集, 以UTF-8编码的某个单一字节是无法代表一个字符的.
-   
-   一个值在从string类型向[]rune类型转换时代表字符串会被拆分成一个个Unicode字符.
 
 go语言的习惯是在if中处理错误然后直接返回, 这样可以确保正常执行的语句不需要代码缩进
 
@@ -906,38 +838,6 @@ fmt.Printf("%s\n", outputBuf2.Bytes())
 #+END_SRC
 
 ** 通道
-通道的声明可以使用make, 如:
-#+BEGIN_SRC go
-ch := make(chan int)
-#+END_SRC
-还可以接受一个int类型的参数, 表示该通道的容量, 所谓容量就是指通道最多可以缓存多少个元素.该值是
-不能小于0的, 当容量为0时, 可以称通道为非缓冲通道, 即不带缓冲的通道, 大于0时称为缓冲通道.
-
-一个通道相当于一个FIFO的队列.
-#+BEGIN_SRC go
-ch := make(chan int, 3)
-ch <- 2
-ch <- 1
-ch <- 3
-
-e := <- ch
-#+END_SRC
-
-通道的发送和接受的基本特性如下:
-1. 对于同一个通道, 发送操作之间是互斥的, 接收操作之间也是互斥的
-   go运行时系统只执行对同一个通道的任意个发送操作中的某一个, 直到这个元素值完全被完全复制进该
-   通道, 其他针对该通道的发送操作才可能被执行. 接收也是类似的. 即使这些操作是并发的.
-   此处的并发可以这样理解: 多个代码块分别在不同的goroutine之中, 并有机会在同一个时间段内被执行
-   对于同一通道中的一个元素值, 发送和接受之间也是互斥的.
-
-   元素从外界进入通道时会被复制, 即进入通道的并不是在接受操作符右边的那个元素值, 而是它的副本
-2. 发送操作和接收操作中对元素值的处理都是不可分割的
-   即发送操作要么还没复制元素要么已经复制完毕, 绝对不会出现只复制了一部分的情况
-3. 发送操作在完全完成之前会被阻塞, 接收操作也是如此.
-   发送操作包括了"复制元素值"和"放置副本到通道内部", 在这两个步骤完成之前, 发起这个发送操作的
-   那句代码会一直阻塞在那里.
-   接收操作包含了"复制通道内的元素值", "放置副本到接受方", "删掉原值"
-   如此阻塞代码其实就是为了实现操作的互斥和元素值的完整
 
 发送和接收操作在什么时候可能被长时间阻塞:
 1. 有缓冲通道的情况
@@ -950,8 +850,7 @@ e := <- ch
    非缓冲的数据是直接从发送方复制到接收方的.
 
 在大多数情况下, 缓冲通道会作为收发双方的中间件. 当发送操作在执行的时候发现空的通道中正好有等待
-的接受操作, 会直接将元素值复制给接收方. 反过来, 当接收操作在执行的时候发现满的通道中正好有等待
-的发送操作, 就会直接从发送方把元素值复制过来.
+的接受操作, 会直接将元素值复制给接收方. 
 
 对于值为nil的通道, 不论具体类型是什么, 对它的发送操作和接受操作都会永久处于阻塞状态. 所属的
 goroutine中的任何代码都不会再被执行
@@ -968,49 +867,7 @@ goroutine中的任何代码都不会再被执行
 结果仍会是通道中的某个元素值, 而第二个结果值一定是true.
 
 ** 单向通道
-只能在一边操作, 即只发不收或者只收不发.
-var useLessChan = make(chan<- int, 1)  // 声明了一个只发而不能收的通道
-var receiveChan = make(<-chan int, 1)  // 声明了一个只收而不能发的通道
 
-1. 单向通道的应用价值
-   最主要的用途就是约束其他代码的行为
-   在实际场景中, 这种约束一般会出现在接口类型声明中的某个方法上. 例如:
-   #+BEGIN_SRC go
-type Notifier interface {
-    SendInt(ch chan<- int)
-}
-   #+END_SRC
-   一个类型如果想成为一个接口类型的实现类型, 就必须实现这个接口定义中的所有方法, 因此如果我们
-   在某个方法的定义中使用了单向通道类型, 就相当于在对它的所有实现做出约束.
-   
-   此处Notifier接口中的SendInt方法, 在该接口的所有实现类型中的SendInt方法都会受到限制. 此种约束
-   在编写模板代码或可扩展程序库的时候很有用.
-
-   在调用SendInt函数时, 只需要将一个元素类型匹配的双向通道传递给它就行, 没必要用发送通道, go会
-   自动进行转换.
-
-   也可以在函数声明的结果列表中使用单向通道.
-   #+BEGIN_SRC go
-func getIntChan() <-chan int {
-    num := 5
-    ch := make(chan int, num)
-    for i:=0; i<num; i++ {
-        ch <-i
-    }
-    close(ch)
-    return ch
-}
-
-func main() {
-    for v := range getIntChan() {
-        fmt.Println(v)
-    }
-}
-   #+END_SRC
-   
-   在使用带有range的for语句来操作通道时需要注意:
-   a. 当通道中没有元素时, 会被阻塞在for处, 直到有新元素值可取
-   b. 如果通道的值为nil, 则会被用于阻塞在for处
 2. select语句与通道联用
    select语句只能与通道联用, 一般由若干个分支组成, 每次执行这种语句的时候, 一般只有一个分支中
    的代码会被运行, 如:
@@ -1039,83 +896,8 @@ func main() {
 }
    #+END_SRC
    使用select的注意事项:
-   a. 如果select有默认分支, 则不管通道操作是否有阻塞, select语句都不会被阻塞. 如果其他几个表达
-   式都阻塞了, 即没有满足求值的条件, 则默认分支就会被选中并执行.
-   b. 如果没有加入默认分支, 则一旦所有的case表达式都没有满足求值条件, 则select就会被阻塞, 直到
-   有一个case表达式满足条件
-   c. 最好是通过接受表达式的第二个结果值来判断通道是否关闭, 一旦发现某个通道关闭了, 就应该及时
-   地屏蔽掉对应的分支或采取其他措施. 这对于程序的逻辑和程序性能都有好处.
-   d. select语句只能对其中的每个case表达式各求值一次, 如果想连续或定时地操作其中的通道的话,
-   就汪汪需要通过在for语句中嵌入select语句的方式来实现. select中的break只能接收当前select语句的
-   执行, 而不会对外层的for语句产生作用.
-   e. select语句是专为通道设计的, 因此每个case表达式中只能包含操作通道的表达式, 如接收表达式.
-   #+BEGIN_SRC go
-func main() {
-intChan := make(chan int, 1)
-	// 一秒后关闭通道。
-	time.AfterFunc(time.Second, func() {
-		close(intChan)
-	})
 
-	select {
-	case _, ok := <-intChan:
-		if !ok {
-			fmt.Println("The candidate case is closed.")
-			break
-		}
-        // 因为有break语句, 所以此语句就永远也执行不到
-		fmt.Println("The candidate case is selected.")
-	}
-}
-   #+END_SRC
-   
-** select语句的规则
-1. 对于每个case表达式, 都至少会包含一个发送或接收表达式, 同时也可能会包含其他的表达式.
-2. select语句包含的候选分支中的case表达式都会在该语句执行开始时先被求值, 并且求值的顺序是
-   从上到下的, 如果某个case有多个表达式, 会按照从左到右执行.
-3. 对于每个case表达式, 如果其中的发送或接受表达式在被求值时处于阻塞状态, 则对该case表达式的
-   求值就是不成功的. 即分支不满足条件.
-4. 仅当select语句中所有case表达式都被求值完毕后, 才会开始选择候选分支. 此时会挑选满足条件的候选
-   分支执行, 如果所有的候选分支都不满足条件, 默认分支就会被执行. 如果没有默认分支, 就会阻塞.
-   参考代码:
-   #+BEGIN_SRC go
-var channels = [3]chan int{
-	nil,
-	make(chan int),
-	nil,
-}
 
-var numbers = []int{1, 2, 3}
-
-func main() {
-	select {
-	case getChan(0) <- getNumber(0):
-		fmt.Println("The first candidate case is selected.")
-	case getChan(1) <- getNumber(1):
-		fmt.Println("The second candidate case is selected.")
-	case getChan(2) <- getNumber(2):
-		fmt.Println("The third candidate case is selected")
-	default:
-		fmt.Println("No candidate case is selected!")
-	}
-}
-
-func getNumber(i int) int {
-	fmt.Printf("numbers[%d]\n", i)
-	return numbers[i]
-}
-
-func getChan(i int) chan int {
-	fmt.Printf("channels[%d]\n", i)
-	return channels[i]
-}
-   #+END_SRC
-5. 如果select遇见发现同时有多个候选分支满足条件, 就会使用一种伪随机算法选择一个执行, 即使select
-   是在唤醒时发现的这种情况, 也会这样做.
-6. 一条select语句只能有一个默认分支, 且只在无候选分支可选时才执行
-7. select语句的每次执行, 包括case表达式求值和分支选择, 都是独立的. 其执行是否并发安全, 需要看
-   其中的case表达式以及分支中是否包含不安全的代码.
-   
 * 文本和HTML模板
 ** 模板
 #+BEGIN_SRC go

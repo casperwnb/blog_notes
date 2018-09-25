@@ -3,6 +3,9 @@
 Linux Namespace是Kernel的一个功能, 可以隔离一系列的系统资源, 如PID(Process ID), User Id, Network
 等, 还可以在一些资源上, 将进程隔离起来, 包括进程树、网络接口、挂载点等.
 
+Namespace技术实际上修改了应用进程看待整个计算机的"视图", 即它的视线被OS做了限制, 只能"看到"某些
+指定的内容.
+
 当前Linux一个实现了6种不同类型的Namesapce, 如下:
 | Namespace类型     | 系统调用参数  | 内核版本 | 作用                                   |
 |-------------------+---------------+----------+----------------------------------------|
@@ -28,7 +31,9 @@ docker并不对应用进程的隔离环境负责, 也不会创建任何实体的
 ** Namesapce的隔离
 Namespace的隔离不是很彻底. 表现在:
 1. 既然容器只是运行在宿主机上的一种特殊的进程, 那么多个容器之间使用的就还是一个宿主机的操作系统
-   内核.
+   内核. 因此如果需要在windows宿主机上运行Linux容器, 或者在低版本的Linux宿主机上运行高版本的Linux
+   容器, 都是不行的.(高版本的容器运行在低版本的Linux宿主机上, 如果不涉及到内核相关的调用, 一般是
+   可以正常运行的).
 2. 在Linux内核中, 有很多资源和对象是不能被Namespace化的, 例如: 时间
    即如果在容器中的程序使用settimeofday(2)系统调用修改了时间, 整个宿主机的时间都会被随之改变.
    这显然不符合用户的预期.
@@ -148,6 +153,14 @@ func main() {
 3. ps -ef  # 此时就只能看到部分容器内的进程信息
 
 * 容器镜像
+** 问题
+1. scratch镜像本身就是一个空镜像
+2. 执行docker run -v /home:/test的时候, 如果容器镜像里的/test目录下有内容, 则会在宿主机目录的
+   home下也会出现相应的内容, 这是为什么呢? # TODO: 目前还没有重现这个情况, 作者提示: docker的
+   copyData功能.
+3. Linux 4.6之后, 增加了一个Namespace叫做cgroup.
+4. 在整个"开发-测试-发布"的流程中, 真正承载着容器信息进行传递的是容器镜像而不是容器运行时.
+
 ** 使用Mount Namespace的C代码
 #+BEGIN_SRC c
 #define _GNU_SOURCE
@@ -314,6 +327,8 @@ aufs联合挂载的信息记录在/sys/fs/aufs下面.
 
 init层: 是docker项目单独生成的一个内部层, 专门用来存放/etc/hosts, /etc/resolv.conf等信息.
 
+# TODO: 如何查看一个docker容器的aufs挂载点信息, 即如何确定一个docker的aufs的si值
+
 * Docker Exec如何进入容器
 ** 原理
 每个进程的Namespace信息在宿主机上是确确实实存在的, 且以一个文件的方式存在.
@@ -359,6 +374,7 @@ int main(int argc, char*argv[]) {
 
 * 容器的数据卷
 Volume机制允许将宿主机上指定的目录或文件挂载到容器里面进行读取和修改操作.
+volume本质是宿主机上的一个独立目录, 不属于rootfs.
 
 ** 数据卷操作
 docker run -v /test ...
@@ -372,8 +388,10 @@ docker run -v /home:/test ...
 只需要在rootfs准备好之后, 在执行chroot之前将volume指定的宿主机目录比如(/home目录)挂载到指定的容器
 目录(如/test)在宿主机上对应的目录(即: /var/lib/docker/aufs/mnt/[可读写层ID]/test)上, 该volume的
 挂载工作就完成了.
+
 由于执行这个挂载操作时, 容器进程已经创建, 即此时Mount Namespace已经开启了, 所以这个挂载事件只在
 这个容器里可见, 在宿主机上是看不见容器内部的挂载点的, 这就保证了容器的隔离性不会被volume打破.
+
 此处提到的"容器进程",是docker创建的一个容器初始化进程(dockerinit), 而不是应用进程(entrypoint+cmd)
 dockerinit会负责完成根目录的准备、挂载设备和目录、配置hostname等一系列需要在容器内进行的初始化
 操作, 最后通过execv调用, 让应用进程取代自己, 称为容器里的PID=1的进程.
@@ -393,6 +411,14 @@ mount --bind /home /test 的示意图: [[file:~/Learn_space/blog_notes/cloud/ima
 到容器中.
 
 容器volume中的信息并不会被docker commit提交, 但这个挂载点目录本身则会出现在新的镜像中.
+
+docker commit不会提交数据卷的内容, 原因是: docker commit是发生在宿主机空间的,
+而由于mount namespace的隔离作用, 宿主机并不知道这个绑定挂载的存在, 所以在宿主机看来, 容器中可
+读写层的/test目录始终是空的. 由于docker一开始还是要创建/test这个挂载点, 所以执行docker commit之后
+会多一个/test空目录.
+
+** 查看数据卷
+docker volume ls  # 查看
 
 * Linux CGroups
 ** 简介

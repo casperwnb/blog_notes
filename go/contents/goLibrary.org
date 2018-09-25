@@ -27,12 +27,11 @@ func HandleCmd() {
 // go run xxx.go --help  # 查看帮助信息
 #+END_SRC
 
-** 定义命令源码文件的参数使用说明
-有很多方式, 最简单的一种方式就是对变量flag.Usage重新赋值. flag.Usage的类型是func(), 是一种无参数
+** 自定义命令源码文件的参数使用说明
+最简单的一种方式就是对变量flag.Usage重新赋值. flag.Usage的类型是func(), 是一种无参数
 且无结果声明的函数类型.
 
 flag.Usage变量在声明时就已经被赋值了, 所以才能够在运行命令go run xx.go --help时看到正确的结果
-
 对flag.Usage的赋值必须在调用flag.Parse函数之前.
 
 #+BEGIN_SRC go 修改flag.Usage
@@ -46,12 +45,13 @@ flag.Parse()
 ** 深入
 在调用flag包中的一些函数的时候, 实际上是在调用flag.CommandLine变量的对应方法.
 flag.CommandLine相当于默认情况下的命令参数容器, 所以通过对flag.CommandLine重新赋值, 可以更深
-层次地制定当前命令源码文件的参数使用说明.
-
+层次地制定当前命令源码文件的参数使用说明. 例如:
 #+BEGIN_SRC go
 func init() {
     // 第二个参数的类型是: falg.NewFlagSet, 其取值有flag.PanicOnError, flag.ExitOnError
-    // 这些值都预先定义在flag包中, 
+    // 这些值都预先定义在flag包中, flag.ExitOnError告诉命令参数容器, 当命令后跟--help或者
+    // 参数设置的不正确时, 在打印命令参数使用说明后以状态码2结束当前程序.
+    // flag.PanicOnError会抛出panic. 这两种情况会在调用flag.Parse时触发.
     flag.CommandLine = flag.NewFlagSet("", flag.ExitOnError)
     flag.CommandLine.Usage = func() {
         fmt.Fprintf(os.Stderr, "Usage Of %s:\n", "Question")
@@ -62,7 +62,6 @@ func init() {
 
 不用全局的flag.CommandLine变量, 而是创建一个私有的命令参数容器. 这样可以定制自己的参数处理方法
 #+BEGIN_SRC go
-
 import (
 	"flag"
 	"fmt"
@@ -105,6 +104,50 @@ var s Student
 
 flag.Var(&s, "student", "Help Msg")
 #+END_SRC
+** flag.Value接口
+为自定义的数据类型定义新的标记符号时, 需要定义一个实现flag.Value接口的类型.
+#+BEGIN_SRC go Value接口的定义
+package flag
+
+type Value interface {
+    String() string  // 该方法用于在命令行帮助消息中, 这样每个flag.Value也是一个fmt.Stringer
+    Set(string) error  //解析它的字符串参数并且更新标记变量的值.
+}
+#+END_SRC
+
+#+BEGIN_SRC go 实现自定义数据的参数接口
+type age int
+
+func (a age) String() string {
+	return fmt.Sprintf("%d", a)
+}
+
+type ageFlag struct{ age }  // 会"继承"age的String方法
+
+func (a *ageFlag) Set(s string) error {  // 此处只实现Set方法即可
+	var value int
+    // 此处s表示的是命令行参数的值数据
+	fmt.Sscanf(s, "%d", &value)
+	a.age = age(value)
+	return nil
+}
+
+func ageFlagFunc(name string, value age, usage string) *Age {
+	a := ageFlag{value}
+	flag.CommandLine.Var(&a, name, usage)
+	return &a.age
+}
+
+func main() {
+	var a = ageFlagFunc("a", 10, "age")
+	flag.Parse()  // 解析命令行参数, 只有调用该方法后, 最终才会调用到对应参数所定义的Set方法
+	fmt.Println(a)
+}
+// #TODO: 如果age是一个类似 type age struct { name string; age int }的结构体该如何定义呢.
+// 解答: 目前我想到的解决方法是命令行参数类似: -s casper:18, 然后在Set中解析该字符串并赋值
+// Set函数获取到的字符串的内容是类似"capser:18"这样的
+#+END_SRC
+
 ** 一个问题
 #+BEGIN_SRC go
 func main() {
@@ -128,11 +171,16 @@ func getTag2() *string {
 /*
 因为没有fmt.Parse()之前，flag.String("name", "everyone", "The greeting object.")的结果是
 "everyone"的指针，也就是默认值。一旦fmt.Parse()执行了，这个指针指向的字符串就变成了你给定
-的参数值了. 这里是指针会指向另一个字符串了，不再是"everyone"了。
+的参数值了. 这里是指针会指向另一个字符串了, 不再是"everyone"了.
 如果直接传字符串值回去，那么也就没办法改变它了.
 parse是参数的解析，然后去改变量值的指针指向的那个值
 */
 #+END_SRC
+
+** 其他的命令行参数定义包
+https://github.com/spf13/cobra  # docker用到了该包
+https://github.com/urfave/cli  # 自己动手写docker的代码中用到了该包
+
 * os
 ** os.Args
 os包以跨平台的方式, 提供了一些与操作系统交互的函数和变量.
@@ -241,6 +289,8 @@ reader, writer := io.Pipe()
 在使用Close关闭管道的某一端之后, 另一端在写数据或读数据时会得到一个预定义的error值
 可以通过调用CloseWithError来定义这种情况下得到的error类型值.
 
+io.Copy(dst, src)  # 从src中读取内容, 并将读到的结果写入到dst中
+
 * net/http包
 ** http.Get
 创建HTTP请求, 如果获取url数据成功, 会在resp这个结构体中得到访问的请求结果.
@@ -251,13 +301,36 @@ b, err := ioutil.ReadAll(resp.Body)
 nBytes, err := io.Copy(ioutil.Discard, resp.Body)  // 计算获取的字节数
 resp.Body.Close()
 #+END_SRC
+
+** 一个简单的web服务器
+#+BEGIN_SRC go
+func Hello(w http.ResponseWriter, r *http.Request) {
+    r.ParseForm()  // 在处理表单提交数据时, 需要先执行该语句
+    fmt.Fprintf(w, "hello, world")
+}
+func main() {
+    http.HandleFunc("/", Hello)
+    http.ListenAndServe("localhost:8888", nil)
+}
+#+END_SRC
+
 * container/list包
 ** 简介
-该包包含了两个公开的程序实体, List和Element. List是一个双向链表, Element代表了链表中元素的结构
+go语言的链表实现, 该包包含了两个公开的程序实体, List和Element, 都是结构体.
+List是一个双向链表, Element代表了链表中元素的结构.
+
+var l list.List声明的变量l的值其长度为0, 链表的根元素将会是一个空壳, 其中只会包含缺省的内容.
+
+list.List为什么会做到开箱即用. 原因是: 在于它的"延迟初始化"机制.
+延迟初始化是指把初始化操作延后, 仅在实际需要的时候才进行, 其优点在于可以分散初始化操作带来的
+计算量和存储空间消耗.
 
 ** 使用
 常用方法:
-Front, Back, InsertBefore, InsertAfter, PushFront, PushBack, Next, New, Remove
+Front, Back, InsertBefore, InsertAfter, PushFront, PushBack, Next, New, Remove, MoveBefore,
+MoveAfter, MoveToFront, MoveToBack等, 这些方法都会把一个Element值的指针作为结果返回, 他们就是
+链表预留的安全"接口", 拿到这些内部元素的指针, 即可以去调用前面提到的方法了.
+
 #+BEGIN_SRC go
 // var l list.List  // 声明的变量l是一个"零值", 该零值是一个长度为0的链表, 链表的根元素是一个空壳
 // 其中会包含缺省的内容, 这个链表可以直接拿来使用, 这被称为开箱即用.
@@ -312,7 +385,8 @@ Ring和List的不同如下:
 2. 一个Ring类型的值严格来讲只代表了其所属的循环链表中的一个元素, 而一个List类型的值
    则代表了一个完整的链表
 3. 在创建并初始化一个Ring值的时候, 可以它包含的元素的数量, List却不能这么做也没必要这么做
-   循环链表一旦创建, 其长度就是固定的
+   循环链表一旦创建, 其长度就是固定的. 这是两个代码包中的New函数在功能上的不同, 也是两个
+   类型在初始化值方面的第一个不同.
 4. 通过var r ring.Ring声明的r将会是一个长度为1的循环链表, var l list.List是一个长度为0的链表.
 5. Ring的Len方法的算法复杂度是O(N), List的Len的复杂度是O(1)
 
@@ -394,18 +468,21 @@ func main() {
 	}
 }
 #+END_SRC
+* container/heap
 * strings包
 strings.Join(os.Args[1:], " ")
 * strconv包
 strconv.FormatInt(int64(10), 2)  // 使用2进制来格式化输出10
 
 * image包
-** 创建GIT动画
+** 创建GIF动画
 使用这个包来生成一系列的bit-mapped图, 然后将这些图片编码为一个GIF动画.
 生成的图形名字叫做利萨如图(Lissajous figures), 这种效果在1960年代的老电影里出现的一种视觉特效.
 它们是协振子在两个维度上振动所产生的曲线. 比如: 两个sin正玹波分别在x轴和y轴输入会产生的曲线.
 
 利萨如图有很多特性, 可以自行查阅资料.
+
+P92, P32, P95
 
 ** 代码
 #+BEGIN_SRC go
@@ -466,9 +543,21 @@ func lissajous(out io.Writer) {
 // 运行: go run main.go > lissajous.gif
 #+END_SRC
 * math/cmplx包
-该包提供了复数处理的许多函数
-* unicode包
+该包提供了复数处理的许多函数.
+math.MaxFloat32表示float32能表示的最大数值, 约等于3.4e38, math.MaxFloat64大约是1.8e308
+math.IsNaN函数用于测试一个数是否是非数NaN, NaN数与任何数都是不相等的.
+在浮点数中, NaN、正无穷和负无穷都不是唯一的, 每个都有非常多的bit模式表示
+
+var x complex128 = complex(1, 2)
+y := 1 + 2i
+
+复数也可以用"=="或"!="进行相等比较.
+
+* unicode/utf8包
 提供了诸多处理rune字符相关的函数, unicode/utf8包提供了用于rune字符序列的utf8编码和解码的功能.
+utf8.DecodeRuneInString()  # 返回一个
+unicode.ReplacementChar 表示无效字符, 并且编码长度是1.
+utf8.UTFMax  最大字节
 
 * path和path/filepath包
 提供了关于路径名的函数操作.
@@ -484,3 +573,59 @@ func main() {
 }
 #+END_SRC
 * encoding/json, encoding/xml等
+* unsafe包
+unsafe.Pointer代表了"指针", 可以表示任何指向可寻址的值的指针, 同时也是指针值与uintptr值间的桥梁,
+即通过它可以在这两种值之上进行双向的转换.
+
+** 可寻址
+不可寻址的有如下:
+1. 常量的值
+2. 基本类型值的字面量
+3. 算术操作的结果值
+4. 对各种字面量的索引表达式和切片表达式的结果值, 对切片字面量的索引结果值是可以寻址的
+5. 对字符串变量的索引表达式和切片表达式的结果值
+6. 对字典变量的索引表达式的结果值
+7. 函数字面量和方法字面量, 以及对他们的调用表达式的结果值
+8. 结构体字面量的字段值, 即对结构体字面量的选择表达式的结果值
+9. 类型转换表达式的结果值
+10. 类型断言表达式的结果值
+11. 接收表达式的结果值
+
+总结:
+1. 不可变的值不可寻址
+2. 绝大多数被视为临时变量的值都是不可寻址的.
+3. 若拿到某值的指针可能会破坏程序的一致性, 就是不安全的, 该值不可寻址.
+
+** unsafe.Pointer的使用
+使用Pointer是一项黑科技, 可以绕过go语言的编译器和其他工具的重重检查, 并达到潜入内存修改数据
+的目的. 这并不是一种正常的编程手段, 使用它会很危险, 很可能造成安全隐患.
+
+#+BEGIN_SRC go
+type Dog struct { Name string; }
+dog := Dog{"little pig"}
+dogP := &dog
+dogPtr := uintptr(unsafe.Pointer(dogP))
+
+// Offsetof获取两个值在内存中的起始地址之间的偏移量, 以字节为单位
+namePtr := dogPtr + unsafe.Offsetof(dogP.name) // 比较推荐的做法
+// namePtr := dogPtr + uintptr(8) // ok
+// namePtr := dogPtr + 8  // ok
+nameP := (*string)(unsafe.Pointer(namePtr))
+fmt.Println(*nameP)  // 输出字符串
+#+END_SRC
+
+转换规则:
+1. 一个指针值(*Dog)可以被转换为一个unsafe.Pointer类型的值, 反之亦然
+2. 一个uintptr类型的值也可以转换为一个unsafe.Pointer类型的值, 反之亦然
+3. 一个指针无法被直接转换成一个uintptr类型的值, 反之亦然
+
+* sync/atomic
+该包中声明了很多用于原子操作的函数.
+* time包
+#+BEGIN_SRC go
+start := time.Now()
+used := time.Since(start).Seconds()  // 计算消耗的秒
+#+END_SRC
+
+* 文本与HTML
+P160

@@ -167,6 +167,38 @@ GO的运行时包含了自己的调度器, 该调度器使用了一些技术手�
 go调度器并不是一个硬件定时器而是被Go语言本身进行调度的. 此调度不需要进入内核的上下文, 所以重新
 调度一个goroutine比调度一个线程代价要小很多.
 
+** 让启用的多个goroutine按照顺序运行
+#+BEGIN_SRC go
+func main() {
+	var count uint32
+
+	// 这里的trigger函数实现了一种自旋(spinning),
+	// 除非发现条件已满足, 否则会不断的进行检查
+    // 此处的count相当于一个信号, 当count == i时就执行函数
+	trigger := func(i uint32, fn func()) {
+		for {
+			if n := atomic.LoadUint32(&count); n == i {
+				fn()
+				atomic.AddUint32(&count, 1)
+				break
+			}
+			// 如果不满足条件, 等待一小会儿后继续执行
+			time.Sleep(time.Nanosecond)
+		}
+	}
+
+	for i := uint32(0); i < 10; i++ {
+		go func(i uint32) {
+			fn := func() {
+				fmt.Println(i)
+			}
+			trigger(i, fn)
+		}(i)
+	}
+	trigger(10, func() {})
+}
+
+#+END_SRC
 ** GOMAXPROCS
 该变量决定会有多少个OS线程同时执行go代码. 其默认是CPU的核心数. GOMAXPROCS就是前面说的m:n中的n.
 
@@ -174,41 +206,6 @@ go调度器并不是一个硬件定时器而是被Go语言本身进行调度的.
 非go语言函数时, 是需要一个对应的OS系统线程的, 但GOMAXPROCS并不需要将这几种情况计算在内.
 
 goroutine是被调度到OS线程上执行的.
-
-* 包
-** 介绍
-go list std | wc -l  # 查看标准包的具体数目
-
-go语言编译速度快的原因有:
-1. 所有导入包必须在每个文件的开头显式声明, 这样编译器就没有必要读取和分析整个源文件来判断包
-   的依赖关系.
-2. 禁止包的环状依赖, 因此包的依赖关系就是一个有向无环图, 每个包可以被独立编译, 且可以并发编译
-3. 编译后包的目标文件不仅仅记录包本身的导出信息, 目标文件同时还记录了包的依赖关系. 在编译一个包
-   的时候只需要读取每个直接导入包的目标文件, 而不需要遍历所有依赖的文件.
-
-** 包导入
-导入包的重命名只影响当前的源文件, 其他的源文件如果导入了相同的包, 可以使用默认的导入也可以重命名
-为另一个名字.
-
-** 内部包
-go语言的构建工具对包含internal名字的路径段的包导入路径做了特殊处理, 这种包叫做internal包.
-
-导入internal包的规则约束如下:
-1. internal包的源码文件必须在以"internal"命名的文件夹下
-2. 包名必须是 package internal
-3. 如果导入代码本身不在以"internal"目录的父目录为root的目录树中, 那么不允许其导入路径中包含
-   internal元素. 例如:
-   #+BEGIN_SRC text
-a/b/internal/x.go
-a/b/c/x.go
-a/b/d/x.go
-a/c/f/x.go
-a/b/x.go
-以上目录结构中, 目录"c", "d"与"internal"目录同级, 因此在"c", "d"中可以导入internal包,
-目录f不能导入internal包, a/b/x.go也可以导入internal包.
-   #+END_SRC
-   a/b/c/internal/d/e/f 只可以被以a/b/c为根目录树下的代码导入, 不能被a/b/g下的代码导入.
-   总结: 只有与internal目录同级或internal同级目录的子目录才能导入
 
 * Go工具
 ** 介绍
@@ -322,4 +319,3 @@ go的runtime运行时包提供了程序运行时控制分析特性的接口. 一
 使用pprof来分析这些数据.
 
 go tool pprof
-

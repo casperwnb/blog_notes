@@ -39,3 +39,27 @@ reflect.Type接口是满足fmt.Stringer接口的.
 reflect.Value可以持有一个任意类型的值, reflect.ValueOf接受任意的interface{}类型, 并返回对应动态
 类型的reflect.Value, reflect.Value也可以持有一个接口值.
 %v使用reflect.Value的结果输出.
+* GO 语言类型推断带来的好处
+Go语言的类型推断只应用在了对变量或常量的初始化方面
+
+1. 重构时的好处
+   #+BEGIN_SRC go
+func main() {
+    var name = getTheFlag()
+    flag.Parse()
+    fmt.Println(*name)
+}
+
+func getTheFlag() *string {
+    return flag.String("name", "everyone", "username")
+}
+   #+END_SRC
+   此处用getTheFlag函数包裹了对flag.String的调用, 并将其结果直接作为getTheFlag函数的结果, 结果的
+   类型是*string. 如果此时想重构代码, 只需直接修改getTheFlag函数的实现即可, 不用修改调用该函数的
+   地方.  即name的类型可以在其初始化时由其他程序动态动态的确定.
+
+   重构: 不改变某个程序与外界的任何交互方式和规则, 而只改变其内部实现的代码修改方式
+
+   总结: Go语言的类型推断可以明显提升程序的灵活性, 使得代码重构变得更加容易, 同时又不会给代码的
+   维护带来额外负担(即可以避免散弹式的代码修改), 更不会损失程序的运行效率.
+

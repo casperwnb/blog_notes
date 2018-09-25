@@ -5,3 +5,51 @@ MySQL 的utf8是一种"专属的编码", 它能够编码的 Unicode 字符并不
 因此所有在使用"utf8"的mysql和Mariadb用户都应该改用"utf8mb4", 永远不要使用utf8.
 
 [[https://mathiasbynens.be/notes/mysql-utf8mb4][将mysql中的utf8转为utf8mb4]]
+
+* Mysql 常用语句
+mysql -h <addr> -P <port> -u <user> -p <pwd>
+
+show processlist  # 显示哪些线程正在运行
+show variables  # 显示系统变量信息
+
+select database()  # 查看当前数据库
+selec now(), user(), version()  # 显示当前时间, 用户名, 数据库版本
+
+* mysql root密码重置
+1. 停止mysql服务
+2. Linux: /usr/local/mysql/bin/safe_mysqld --skip-grant-tables &
+   windows: mysqld --skip-grant-tables
+3. use mysql
+4. update `user` set password=password("<pwd>") where `user`="root"
+5. flush privileges;
+
+* mysql用户和权限管理
+用户信息表: mysql.user
+
+# 增加用户
+create user <user> identified by [password] <pwd>
+执行该语句:必须拥有mysql数据库的全局create user权限, 或拥有insert权限. 只能创建用户, 不能赋予权限.
+用户名形如: 'user_name'@'ip', 密码也需要引号.
+要在纯文本中指定密码, 需忽略password关键字, 要把密码指定为由password()函数返回的混变值, 需要包含
+password关键字
+
+# 为当前用户设置密码
+set password = password('pwd')
+# 为指定用户设置密码
+set password for <username> = password('pwd')
+
+# 分配权限
+grant <权限列表> on 表名 to <username> [identified by [password] 'pwd']
+all privileges  表示所有权限
+*.*  表示所有库的所有表
+库名.表名  表示某库下面的某表
+
+
+# 查看权限
+show grants for <user>
+show grants
+show grants for current_user
+show grants for current_user()
+
+# 撤销权限
+revoke <权限列表> on 表名 from 用户名
