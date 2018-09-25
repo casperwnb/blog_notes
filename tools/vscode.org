@@ -1,0 +1,47 @@
+* VS Code
+** 简介
+VS Code有两个不同的发布渠道: 一个是稳定版(每个月发布一个主版本), 另外一个发布渠道是Insiders,
+每周一到周五UTC时间早上6点从最新版本的代码发布一个版本.
+
+Insiders版本的好处是:
+1. 可以尽早使用上最新的功能. 新功能会先在insiders版本里运行, 运行稳定后会在当月的稳定版本中发布.
+   如果改动比较大, 可能会在insider版本中运行两个月才会发布到稳定版本中
+2. 可以深度参与VS Code产品的开发过程.
+
+** 命令面板
+可以通过F1或Cmd+Shitf+P打开.
+
+VS Code的绝大多数命令都可以在命令面板中搜索到.
+
+** 命令行使用
+在安装vs code之后, 打开命令命令面板, 输入shell, 选择"在path中安装code", 之后重新打开一个终端,
+就可以在命令行中使用code命令了.
+
+code --help  # 查看帮助信息
+
+code -r -g <filename:line[:character]>  # 打开文件, -r窗口复用, -g滚动到特定的行
+code -r -d a.txt b.txt  # 比较两个文件的内容差异
+
+vs code 除了能打开磁盘上的文件以外, 还接受来自管道中的数据. 例如:
+ls | code -
+
+vs code的各个参数可以定义vs code的运行方式, 如:
+--disable-extensions, --max-memory
+
+** 快捷键
+[[https://code.visualstudio.com/shortcuts/keyboard-shortcuts-macos.pdf][快捷键汇总]]
+
+一些常用的快捷键:
+Ctrl+`  # 在终端和编辑器之间的转换
+Opt+<DEL>  # 删除一个单词
+Cmd+<DEL>  # 删除整行
+
+Cmd+shitf+D  # 启动和调试
+cmd+shift+p  # 命令面板
+cmd+p  # 快速打开文件
+cmd+k cmd+s  # 显示快捷键
+cmd+x  # 剪切整行数据, 如果有选中部分, 则只剪切选中的部分
+cmd+k p  # 复制当前文件的路径
+cmd+k r  # 在finder中打开文件
+cmd+d  # 选中某个单词, 再按一次会选中下一个同名的单词, 然后可以一起修改该值
+opt+shift+i  # 在选中的每行后边都会插入一个新的光标

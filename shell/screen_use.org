@@ -1,0 +1,4 @@
+* Screen 简单用法
+screen -S <name>  # 新建
+screen -ls  # 查看
+screen -r <name>  # 重新进入<name>
