@@ -128,3 +128,76 @@ kubeadm init --config kubeadm.yaml  # 通过提供一个YAML文件来创建
 
 kubeadm就会使用上面这些信息替换/etc/kubernetes/manifests/kube-apiserver.yaml里的cmmand字段
 里的参数了.
+* kubernetes环境搭建
+** ubuntu 16.04
+1. 安装docker
+   apt update && apt install -y docker.io
+   使用docker.io源的原因是, docker公司每次发布的最新docker ce产品往往还没有经过kubernetes项目的
+   验证, 可能会有兼容性方面的问题.
+2. 安装kubelet、kubeadm、kubectl
+   在Master节点上安装
+   #+BEGIN_SRC text
+apt update && apt install -y apt-transport-https
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+apt-key add -
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb http://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+
+apt update
+apt install -y kubelet kubeadm kubectl
+   #+END_SRC
+
+   源可以换成: deb http://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial main
+3. 在master节点上建立一个kubeadm.yaml文件, 内容如下:
+   #+BEGIN_SRC yaml
+apiVersion: kubeadm.k8s.io/v1alpha1
+kind: MasterConfiguration
+controllerManagerExtraArgs:
+  horizontal-pod-autoscaler-use-rest-clients: "true"
+  horizontal-pod-autoscaler-sync-period: "10s"
+  node-monitor-grace-period: "10s"
+apiServerExraArgs:
+  runtime-config: "api/all=true"
+kubernetesVersion: "stable-1.11"
+   #+END_SRC
+4. 部署Master节点
+   kubeadm init --config kubeadm.yaml
+
+   如果报错: running with swap on is not supported. Please disable swap
+   解决方法:
+   swapoff -a
+   sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+   kubeadm init执行完之后, 会输出命令:
+   kubeadm join <ip>:<port> --token <token> --discovery-token-ca-cert-hash sha256:<hash>
+5. 在master节点上执行命令
+   #+BEGIN_SRC bash
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+   #+END_SRC
+   kubectl默认会使用$HOME/.kube目录下的授权信息访问kubernetes集群, 如果不这么做, 每次都
+   需要通过export KUBECONFIG环境变量告诉kubectl这个安全配置文件的位置.
+6. 部署网络插件
+   kubectl apply -f https://git.io/weave-kube-1.6
+7. 在Node节点执行命令
+   执行master节点上的输出 kubeadm join
+
+** 使用
+刚刚部署master节点后, 使用kubectl get nodes查看到该节点的状态是"NotReady".
+通过kubectl describe node <node-name> 发现是因为尚未部署任何网络插件.
+
+kubernetes支持容器网络插件, 使用的是一个叫做CNI的通用接口, 它是当前容器网络的事实标准, 市面上
+的所有容器网络开源项目都可以通过cni接入kubernetes.
+
+默认情况下, kubernetes的master节点是不能运行用户pod的.
+
+** 命令
+kubectl get nodes  # 查看节点信息
+kubectl describe node master  # 查看master节点的详细信息
+kubectl get pods -n kube-system  # 查看节点上各个系统Pod的状态, kube-system是kubernetes项目预留
+的系统Pod的工作空间(不是Linux Namespace, 只是kubernetes划分不同工作空间的单位)
+
+* 在线交互环境
+https://kubernetes.io/docs/tutorials/kubernetes-basics
