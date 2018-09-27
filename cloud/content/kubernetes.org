@@ -135,7 +135,7 @@ kubeadm就会使用上面这些信息替换/etc/kubernetes/manifests/kube-apiser
    使用docker.io源的原因是, docker公司每次发布的最新docker ce产品往往还没有经过kubernetes项目的
    验证, 可能会有兼容性方面的问题.
 2. 安装kubelet、kubeadm、kubectl
-   在Master节点上安装
+   在所有节点上安装
    #+BEGIN_SRC text
 apt update && apt install -y apt-transport-https
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
@@ -179,8 +179,13 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
    #+END_SRC
    kubectl默认会使用$HOME/.kube目录下的授权信息访问kubernetes集群, 如果不这么做, 每次都
    需要通过export KUBECONFIG环境变量告诉kubectl这个安全配置文件的位置.
+
+   Node节点上可以将Master节点上的$HOME/.kube/config拷贝过来即可使用
+   echo "source <(kubectl completion bash)" >> ~/.bashrc  # 命令行命令补全提示
 6. 部署网络插件
    kubectl apply -f https://git.io/weave-kube-1.6
+   # 也可以安装flannel网络插件
+   kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yaml
 7. 在Node节点执行命令
    执行master节点上的输出 kubeadm join
 
@@ -191,13 +196,220 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 kubernetes支持容器网络插件, 使用的是一个叫做CNI的通用接口, 它是当前容器网络的事实标准, 市面上
 的所有容器网络开源项目都可以通过cni接入kubernetes.
 
-默认情况下, kubernetes的master节点是不能运行用户pod的.
+默认情况下, kubernetes的master节点是不能运行用户pod的, 实现这一点是倚靠kubernetes的
+Taint/Toleration机制.
+
+其原理是: 一旦某个节点被加上了一个Taint, 即被打上了"污点", 那么所有的Pod就都不能在这个节点上运行,
+除非有个别的Pod声明自己能容忍这个污点, 即声明了Toleration, 它才可以在这个节点上运行.
+
+kubectl taint nodes node1 foo=bar:NoSchedule  # 在node1节点上增加一个键值对格式的taint, 其值里的
+NoSchedule意味着这个Taint只会在调度新Pod时产生作用, 而不会影响已经在node1上运行的Pod, 哪怕他们
+没有toleration.
+
+** Pod声明Toleration
+只需在Pod的.yaml文件中的spec部分加入tolerations字段即可:
+#+BEGIN_SRC conf
+spec:
+  tolerations:
+  - key: "foo"
+    operator: "Equal"
+    value: "bar"
+    effect: "NoSchedule"
+#+END_SRC
+表示该Pod能"容忍"所有键值对为foo=bar的Taint.
+
+注意: 如果某个节点上已经有某个Taint, 但是声明的yaml文件中没有相应的toleration的声明, 则就
+一定不会调度到这个节点上, 即Pod具有"洁癖", 默认情况下只喜欢在没有任何taint的节点上运行.
+
+如果想建立单节点的kubernetes, 可以删除默认的taint.
+kubectl taint nodes --all node-role.kubernetes.io/master-
+
+kubectl taint nodes <node1> key=value:NoSchedule  # 在node1上添加taint
+kubectl taint nodes <node1> key:NoSchedule-  # 删除<node1>上的key的taint
+
+** 部署Dashboard可视化插件
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
+部署完成后, 可以查看Dashboard对应的Pod状态:
+kubectl get pods -n kube-system
+Dashboard是一个web server, 从1.7+后默认只能通过proxy的方式在本地访问, [[https://github.com/kubernetes/dashboard][参考]]
+
+** 部署容器存储插件
+如果在某一台机器上启动一个容器, 显然是无法看到其他机器上的容器在它们的数据卷里写入的文件, 这是
+容器最典型的特征之一, 无状态.
+
+容器的持久化存储就是用来保存容器存储状态的重要手段.
+
+存储插件会在容器里挂载一个基于网络或其他机制的远程数据卷, 使得在容器里创建的文件, 实际上是保存在
+远程存储服务器上, 或者以分布式的方式保存在多个节点上, 而与当前宿主机没有任何绑定关系. 这样, 无论
+在哪个宿主机上启动新的容器, 都可以请求挂载指定的持久化存储卷, 从而访问到数据卷里保存的内容, 这
+就是"持久化"的含义.
+
+Rook项目是一个基于Ceph的kubernetes存储插件(后期也在加入对更多存储实现的支持). 不同于Ceph的简单
+封装, Rook在自己的实现中加入了水平扩展、迁移、灾难备份、监控等大量的企业级功能, 使得该项目成了
+一个完整的、生产级可用的容器存储插件.
+
+部署命令:
+kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/operator.yaml
+kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/cluster.yaml
+
+部署完成后, Rook项目会将自己的Pod放置在由它自己管理的两个Namespace中.
+kubectl get pods -n rook-ceph-system
+kubectl get pods -n rook-ceph
+
+此时一个基于Rook持久化存储集群就以容器的方式运行起来了, 而在接下来的kubernetes项目上创建的所有
+Pod就能够通过Persistent Volumen(PV)和Persistent Volume Claim(PVC)的方式, 在容器里挂载由Ceph提供
+的数据卷了.
 
 ** 命令
+kubectl get namespaces  # 获取命名空间
+
+kubectl get pods # 获取默认命名空间下的pods信息
+kubectl get pod --all-namespaces -o wide  # 查看所有pod的状态, -o wide 可以展示更多信息
+
 kubectl get nodes  # 查看节点信息
 kubectl describe node master  # 查看master节点的详细信息
 kubectl get pods -n kube-system  # 查看节点上各个系统Pod的状态, kube-system是kubernetes项目预留
 的系统Pod的工作空间(不是Linux Namespace, 只是kubernetes划分不同工作空间的单位)
 
+kubectl taint nodes --all node-role.kubernetes.io/master-  # 删除默认的taint, 其中的"-"表示移除
+所有以"node-role.kubernetes.io/master"为键的taint
+
+kubectl describe pods  # 查看默认命名空间下的pods的信息
+kubectl describe pod <podname> --namespace=<namespace>  # 查看pod的具体信息
+kubectl get pods -l app=nginx  # -l的值是labels标签中定义的键-元素对
+
+kubectl logs <POD_NAME>  # 查看某个pod的日志信息
+kubectl exec -ti <podname> <cmd>  # 在某个pod中执行命令
+
+kubectl get services  # 查看服务状态
+kubectl label pod <podname> app=v1  # 给podname添加对应的标签
+kubeadm token list  # 查看kubeadmin token信息
+
+** kubectl describe的使用
+如果对pod有疑问, 可以使用kubectl describe pod <pod-name> 来查看信息, 需要重点注意Events.
+在kubernetes执行的过程中, 对api对象的所有重要操作, 都会被记录在这个对象的Events里, 并且显示在
+kubectl describe指令返回的结果中. 如果有异常发生, 你一定要第一时间查看这些Events.
+
+* 第一个容器化应用
+** 编写kubernetes的配置文件
+配置文件可以是Yaml或json格式.
+
+写好配置文件之后, 使用命令: kubectl create -f <config_name>, 例如:
+#+BEGIN_SRC yaml nginx.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.7.9
+        ports:
+        - containerPort: 80
+#+END_SRC
+这样一个yaml文件, 对应到kubernetes中就是一个API Object(API 对象). 当为这个对象的各个字段填好值
+并提交给kubernetes后, kubernetes会负责创建出这些对象所定义的容器或其他类型的API资源.
+
+上述yaml文件中Kind字段指定了这个API对象的类型是一个Deployment.
+Deployment是一个定义多副本应用(及多个副本pod)的对象, Deployment还负责在Pod定义发生变化时, 对每个
+副本进行滚动更新(Rolling update).
+定义的Pod副本个数是2(spec.replicas).
+Pod模板(spec.template): 定义了该模板要创建的pod细节, 上述文件中, Pod里只定义了一个容器, 该容器的
+镜像(spec.containers.image)是nginx:1.7.9, 容器监听端口(containerPort)为80
+
+注意: 像这样使用一种API对象(Deployment)管理另一种API对象(Pod)的方法, 在kubernetes中, 叫作"控制器"
+模式.
+
+每个API对象都有一个叫做metadata的字段, 该字段就是API对象的"标识", 即元数据, 是从kubernetes里找到
+该对象的主要依据, 其中最主要使用到的字段就是lables.
+
+labels就是一组key-value格式的标签, 像deployment这样的控制器对象就可以通过这个labels字段从
+kubernetes中过滤出它所关心的被控制对象. 这个过滤的定义在spec.selector.matchLabels, 一般称之为
+Label Selector.
+
+在Metadata中, 还有一个与Labels格式、层级完全相同的字段叫做Annotations, 专门用来携带key-value格式
+的内部信息, 所谓内部信息指的是对这些信息感兴趣的是kubernetes组件本身, 而不是用户, 因此大多数
+annotations都是在kubernetes运行过程中被自动加在这个api对象上.
+
+一个kubernetes的API对象的定义, 大多可以分为metadata和spec两个部分. metadata存放的是这个对象的元
+数据, 对所有api对象来说, 这部分的字段和格式基本上是一样的; spec存放的是属于这个对象独有的定义,
+用来描述它所要表达的功能.
+
+** 对Nginx服务进行升级
+只需要修改yaml文件, 修改如下:
+#+BEGIN_SRC yaml
+...
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.8  # 这里从1.7.9升级到1.8
+...
+#+END_SRC
+然后使用kubectl replace -f <yaml_path>指令来完成这个更新.
+建议使用kubectl apply 命令来统一进行kubernetes对象的创建和更新操作, 具体做法如下:
+kubectl apply -f <yaml_path>
+
+** 在kubernetes中使用Volume
+#+BEGIN_SRC yaml nginx.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.7.9
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/root/"
+          name: nginx-vol
+      volumes:
+      - name: nginx-vol
+        emptyDir: {}
+#+END_SRC
+以上代码在Pod模板部分添加了一个volumes字段, 定义了这个Pod声明的所有volume, 名字叫做nginx-vol,
+类型是emptyDir.
+
+emptyDir: 等同于docker的隐式volume参数, 即不显式声明宿主机目录的volume. 所以kubernetes也会在
+宿主机上创建一个临时目录, 这个目录将来就会被绑定挂载到容器所声明的volume目录上.
+
+注意: kubernetes的emptyDir类型, 只是把kubernetes创建的临时目录作为volume的宿主机目录交给了docker.
+这么做的原因是kubernetes不想依赖docker自己创建的那个_data目录.
+Pod中的容器, 使用的是volumeMount字段来声明自己要挂载哪个volume, 并通过mountPath字段来定义容器内
+的volume目录, 比如:"/root"
+
+kubernetes也提供了显式的volume定义, 它叫做hostPath, 例如:
+#+BEGIN_SRC yaml
+...
+volumes:
+- name: nginx-vol
+  hostPath:
+    path: "/var/data"
+#+END_SRC
+这样容器volume挂载的宿主机目录就变成了/var/data
+
+kubectl delete -f <yaml_path>
+
 * 在线交互环境
 https://kubernetes.io/docs/tutorials/kubernetes-basics
+
+kubeadm join 10.211.55.4:6443 --token xctjyz.9b2dw4f3deyw4cdc --discovery-token-ca-cert-hash sha256:1db8f64748875d822a7b06a961b01f3427628295008102e4f8599f61af9ea8ff

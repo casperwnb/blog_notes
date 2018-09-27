@@ -25,7 +25,7 @@ server {
     # DH-Key交换密钥文件位置
     ssl_dhparam /etc/ssl/certs/dhparam.pem;  # 使用openssl dhparam -out dhparam.pem 4096生成
     # 生成该文件会需要很长的时间, 如果是在服务器上, 可以使用screen来生成该文件, 也可以从其他地方
-    # 拷贝过来该文件.
+    # 拷贝过来该文件. 测试时, 大概跑了77m左右
     # Load configuration files for the default server block.
     include /etc/nginx/default.d/*.conf;
     location /static {

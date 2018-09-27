@@ -1,0 +1,5 @@
+* Postman中post请求填写json
+1. 在Headers中的Content-Type填写: application/json
+2. 在Body中, 选择raw, 然后输入提交的json数据即可.
+
+快捷操作是: 在Body中, 点击raw, 会在右边出现一个选项, 选择json即可
