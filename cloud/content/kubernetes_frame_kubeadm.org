@@ -155,6 +155,12 @@ kubernetesVersion: "stable-1.11"
    swapoff -a
    sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 
+   如果报错: your configuration file uses an old API spec ...
+   解决方法:
+   将apiVersion的值改为: kubeadm.k8s.io/v1alpha3
+   kind的值改为: ClusterConfiguration
+   kubernetesVersion的值该为: "stable-1.12"
+
    kubeadm init执行完之后, 会输出命令:
    kubeadm join <ip>:<port> --token <token> --discovery-token-ca-cert-hash sha256:<hash>
 5. 在master节点上执行命令
@@ -219,6 +225,8 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/s
 kubectl get pods -n kube-system
 Dashboard是一个web server, 从1.7+后默认只能通过proxy的方式在本地访问, [[https://github.com/kubernetes/dashboard][参考]]
 
+然后运行命令: kubectl proxy, 之后根据提示就可访问了
+
 ** 部署容器存储插件
 如果在某一台机器上启动一个容器, 显然是无法看到其他机器上的容器在它们的数据卷里写入的文件, 这是
 容器最典型的特征之一, 无状态.
@@ -246,30 +254,6 @@ kubectl get pods -n rook-ceph
 Pod就能够通过Persistent Volumen(PV)和Persistent Volume Claim(PVC)的方式, 在容器里挂载由Ceph提供
 的数据卷了.
 
-** 命令
-kubectl get namespaces  # 获取命名空间
-
-kubectl get pods # 获取默认命名空间下的pods信息
-kubectl get pod --all-namespaces -o wide  # 查看所有pod的状态, -o wide 可以展示更多信息
-
-kubectl get nodes  # 查看节点信息
-kubectl describe node master  # 查看master节点的详细信息
-kubectl get pods -n kube-system  # 查看节点上各个系统Pod的状态, kube-system是kubernetes项目预留
-的系统Pod的工作空间(不是Linux Namespace, 只是kubernetes划分不同工作空间的单位)
-
-kubectl taint nodes --all node-role.kubernetes.io/master-  # 删除默认的taint, 其中的"-"表示移除
-所有以"node-role.kubernetes.io/master"为键的taint
-
-kubectl describe pods  # 查看默认命名空间下的pods的信息
-kubectl describe pod <podname> --namespace=<namespace>  # 查看pod的具体信息
-kubectl get pods -l app=nginx  # -l的值是labels标签中定义的键-元素对
-
-kubectl logs <POD_NAME>  # 查看某个pod的日志信息
-kubectl exec -ti <podname> <cmd>  # 在某个pod中执行命令
-
-kubectl get services  # 查看服务状态
-kubectl label pod <podname> app=v1  # 给podname添加对应的标签
-kubeadm token list  # 查看kubeadmin token信息
 
 ** kubectl describe的使用
 如果对pod有疑问, 可以使用kubectl describe pod <pod-name> 来查看信息, 需要重点注意Events.

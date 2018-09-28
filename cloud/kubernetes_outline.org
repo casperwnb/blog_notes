@@ -1,7 +1,49 @@
 * kubernetes环境搭建与kubeadm
 [[file:content/kubernetes_frame_kubeadm.org][kubernetes及其环境搭建与kubeadm]]
 
+* kubernetes-Pod
+[[file:content/kubernetes_pod.org][kubernetes中的Pod]]
+
+* 编排 - "控制器"模型
+[[file:content/kubernetes_controllermode.org][容器编排的"控制器"模型]]
+
+* kubernetes常用命令
+kubectl get namespaces  # 获取命名空间
+
+kubectl get pods # 获取默认命名空间下的pods信息
+kubectl get pod --all-namespaces -o wide  # 查看所有pod的状态, -o wide 可以展示更多信息
+
+kubectl get nodes  # 查看节点信息
+kubectl describe node master  # 查看master节点的详细信息
+kubectl get pods -n kube-system  # 查看节点上各个系统Pod的状态, kube-system是kubernetes项目预留
+的系统Pod的工作空间(不是Linux Namespace, 只是kubernetes划分不同工作空间的单位)
+
+kubectl taint nodes --all node-role.kubernetes.io/master-  # 删除默认的taint, 其中的"-"表示移除
+所有以"node-role.kubernetes.io/master"为键的taint
+
+kubectl describe pods  # 查看默认命名空间下的pods的信息
+kubectl describe pod <podname> --namespace=<namespace>  # 查看pod的具体信息
+kubectl get pods -l app=nginx  # -l的值是labels标签中定义的键-元素对
+
+kubectl logs <POD_NAME>  # 查看某个pod的日志信息
+kubectl exec -ti <podname> <cmd>  # 在某个pod中执行命令
+kubectl attach -ti <podname> -c <cmd>  # 在pod中执行命令
+
+kubectl get services  # 查看服务状态
+kubectl label pod <podname> app=v1  # 给podname添加对应的标签
+kubeadm token list  # 查看kubeadmin token信息
+kubectl get secrets
+
 * 在线交互环境
 https://kubernetes.io/docs/tutorials/kubernetes-basics
 
-kubeadm join 10.211.55.4:6443 --token xctjyz.9b2dw4f3deyw4cdc --discovery-token-ca-cert-hash sha256:1db8f64748875d822a7b06a961b01f3427628295008102e4f8599f61af9ea8ff
+https://github.com/huan9huan/k8s-practice: 别人的笔记
+
+kubeadm join 10.211.55.4:6443 --token xctjyz.9b2dw4f3deyw4cdc \
+--discovery-token-ca-cert-hash \
+sha256:1db8f64748875d822a7b06a961b01f3427628295008102e4f8599f61af9ea8ff
+
+# swap
+kubeadm join 10.211.55.6:6443 --token i277go.47nv5y1zxnyamqge \
+--discovery-token-ca-cert-hash \
+sha256:614f69cb5af1f5299d1ea68d3eac6f3c767d8d2e59d24aa4f4c64bf176bb60ec
