@@ -1,0 +1,119 @@
+* Pod
+** Pod简介
+docker的本质就是"Namespace做隔离, Cgroups做限制, rootfs做文件系统". kubernetes提出了pod的概念.
+容器就是未来云计算系统中的进程, 容器镜像就是这个系统里的".exe"安装包, 因此kubernetes就类似于
+"操作系统".
+
+pstree -g  # 展示当前系统中正在运行的进程的树状结构.
+
+在一个操作系统里, 进程并不是"孤苦伶仃"地独自运行的, 而是以进程组的方式有"原则的"组织在一起, 在
+这个进程的树状图中, 每个进程后面括号里的数字就是它的进程组ID(process group id, PGID).
+
+对于操作系统来说, 这样的进程组更方便管理, Linux操作系统只需要将信号发送给一个进程组, 那么该进程组
+中的所有进程都会收到这个信号而终止运行.
+
+kubernetes项目做的, 就是将"进程组"的概念映射到了容器技术中, 并使其成为了这个云计算"操作系统"里的
+"一等公民".
+kubernetes项目的调度器统一按照Pod而非容器的资源需求进行计算的.
+
+容器间的紧密协作, 可以称为"超亲密关系". 这些具有"超亲密关系"容器的典型特征包括但不限于: 互相之间
+会发生直接的文件交换、使用localhost或socket文件进行本地通信、会发生非常频繁的远程调用、需要共享
+某些linux namespace(如一个容器要加入另一个容器的network namespace)等等.
+
+** Pod实现原理
+Pod在kubernetes项目里还有更重要的意义, 就是: 容器设计模式
+Pod只是一个逻辑概念, 即kubernetes正真处理的还是宿主机操作系统上Linux容器的Namespace和Cgroups, 并
+不存在一个所谓的Pod的边界或者隔离环境. Pod的本质是一组共享了某些资源的容器. 具体说: Pod里的所有
+容器共享的是同一个Network namespace, 并且可以声明共享同一个Volume.
+
+理解Pod的本质: 实际上是在扮演传统基础设施里"虚拟机"的角色, 容器这是这个"虚拟机"中运行的用户程序
+
+虽然可以通过docker run的--net, --volumes-form也能实现, 但这样容器B就必须比容器A先启动, 这样一个
+Pod里的多个容器就不是对等关系, 而是拓扑关系了.
+
+在kubernetes项目里, pod的实现需要使用一个中间容器, 这个容器叫作Infra容器, 在Pod中, Infra容器
+永远都是第一个被创建的容器, 而其他用户定义的容器, 则通过Join Network namespace的方式, 与infra容器
+关联在一起, 参见: [[file:~/Learn_space/blog_notes/cloud/images/pod.png][Pod示意图]]
+
+Infra容器一定要占用极小的资源, 所以它使用的是一个非常特殊的镜像, 叫做: k8s.gcr.io/pause, 该镜像
+是用一个汇编语言编写, 永远处于"暂停"状态的容器, 解压后的大小也只有100~200kb左右.
+Infra容器"Hold住"Network namespace后, 用户容器就可以加入到infra容器的network namespace当中了.
+如果查看这些容器在宿主机上的namespace文件, 它们指向的值一定是完全一样的.
+
+对于Pod里的容器A和B来说:
+1. 它们可以直接使用localhost进行通信
+2. 它们看到的网络设备跟Infra容器看到的完全一样
+3. 一个Pod只有一个IP地址, 即该Pod的network namespace对应的ip地址
+4. 其他的所有网络资源都是一个pod一份, 并且被该pod中的所有容器共享
+5. Pod是生命周期只跟Infra容器一致, 而容器A和B无关
+
+对于同一个Pod里的所有容器, 它们的进出流量也可以认为都是通过Infra容器完成的.
+因此如果将来要为kubernetes开发一个网络插件时, 应该重点考虑的是如何配置这个Pod的network namespace,
+而不是每个用户容器如何使用你的网络配置, 这是没有意义的.
+
+Pod这种"超亲密关系"容器的设计思想, 实际上就是希望当用户想在一个容器里跑多个功能并不相关的应用
+时, 应该优先考虑它们是不是更应该被描述成一个Pod里的多个容器.
+
+** 例子
+1. 最典型的例子是: WAR包与Web服务器
+   #+BEGIN_SRC yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: javaweb-2
+spec:
+  initContainers:
+  - image: geektime/sample:v2
+    name: war
+    command: ["cp", "/sample.war", "/app"]
+    volumeMounts:
+    - mountPath: /app
+      name: app-volume
+  containers:
+  - image: geektime/tomcat:7.0
+    name: tomcat
+    command: ["sh", "-c", "/root/apache-tomcat/bin/start.sh"]
+    volumeMounts:
+    - mountPath: "/root/apache-tomcat/webapps"
+      name: app-volume
+    ports:
+    - containerPort: 8080
+      hostPort: 8001
+  volumes:
+  - name: app-volume
+    emptyDir: {}
+   #+END_SRC
+   注意: War包容器的类型是一个Init Container类型的容器, 在Pod中, 所有InitContainer都会比
+   spec.containers定义的用户容器先启动, 并且InitContainer容器会按顺序逐一启动, 直到它们都启动并且
+   退出了, 用户容器才会启动.
+
+   像这样用一种"组合"操作, 正是容器设计模式里最常用的一种模式, 它叫做sidecar.
+   sidecar指的就是可以在一个Pod中, 启动一个辅助容器, 来完成一些独立于主进程(主容器)之外的工作.
+2. 容器的日志收集
+   需要不断地把日志文件输出到容器的/var/log目录中, 这时就可以把一个pod里的volume挂载到应用容器
+   的/var/log目录上. 这样, sidecar容器就只需要做一件事儿, 就是不断地从自己的/var/log目录里读取
+   日志文件, 转发到MongoDB货Elasticsearch中存储起来.
+3. Istio项目使用sidecar容器完成微服务治理的原理.
+
+** Pod对象 - 基本概念
+Pod才是kubernetes项目中的最小编排单位.将这个设计落实到API对象上,容器就成了Pod属性里的一个普通字段
+
+到底哪些属性属于Pod对象, 而哪些属于Container呢? 需要记住: Pod扮演的是传统部署环境里"虚拟机"的
+角色, 这样的设计是为了使用户从传统环境(虚拟机环境)向kubernetes(容器环境)的迁移更加平滑.
+
+可以将Pod看成传统环境里的"机器", 把容器看作是运行在这个"机器"里的"用户程序", 则很多关于Pod对象
+的设计就很容易理解了, 例如:凡是调度、网络、存储、安全相关的属性, 基本上都是Pod级别的.
+这些属性的共同特征是: 它们描述的是"机器"这个整体, 而不是里面运行的"程序". 比如: 配置这个"机器"
+的网卡(即Pod网络定义), 配置"机器"的磁盘(即Pod的存储定义), 配置"机器"的防火墙(即Pod的安全定义).
+以及这台"机器"运行在哪个服务器之上(即Pod的调度).
+
+** Pod中重要字段的含义和用法
+NodeSelector: 是一个供用户将Pod与Node进行绑定的字段, 用法:
+#+BEGIN_SRC yaml
+apiVersion: v1
+kind: Pod
+...
+spec:
+  nodeSelector:
+  disktype: ssd
+#+END_SRC

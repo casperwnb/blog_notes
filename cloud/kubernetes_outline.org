@@ -1,0 +1,7 @@
+* kubernetes环境搭建与kubeadm
+[[file:content/kubernetes_frame_kubeadm.org][kubernetes及其环境搭建与kubeadm]]
+
+* 在线交互环境
+https://kubernetes.io/docs/tutorials/kubernetes-basics
+
+kubeadm join 10.211.55.4:6443 --token xctjyz.9b2dw4f3deyw4cdc --discovery-token-ca-cert-hash sha256:1db8f64748875d822a7b06a961b01f3427628295008102e4f8599f61af9ea8ff
