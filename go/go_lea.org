@@ -89,6 +89,9 @@ go doc http.ListenAndServe  # 在本地查看ListenAndServe的注释信息
 // <funcName> xxx
 func funcName() {}
 
+* go mod使用
+[[file:contents/gomod.org][go mod使用]]
+
 * GO基础知识
 [[file:contents/goBase.org][Go基础知识]]
 

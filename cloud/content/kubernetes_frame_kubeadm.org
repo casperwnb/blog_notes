@@ -56,6 +56,7 @@ CronJob用于描述定时任务.
 * kubeadm
 ** 介绍
 kubeadm是一个容器部署工具. [[https://github.com/kubernetes/kubeadm][github地址]]
+kubeadm将kubelet直接运行在宿主机上, 然后使用容器部署其他的kubernetes组件.
 
 ** kubeadm init原理
 1. kubeadm首先是一系列的检查工作, 以确定这台机器可以用来部署kubernetes, 这一步检查称为"Preflight
@@ -79,7 +80,6 @@ kubeadm是一个容器部署工具. [[https://github.com/kubernetes/kubeadm][git
    而是拷贝现有的证书到/etc/kubernetes/pki目录下
 3. 证书生成之后,kubedam会为其他组件生成范文kube-apiserver所需的配置文件,
    路径是:/etc/kubernetes/xx.conf
-
 4. 然后kubeadm会为master组件生成pod配置文件.
    在kubernetes中, 有一种特殊的容器启动方法叫做"Static Pod", 允许把要部署的Pod的YAML文件
    放在一个指定的目录里, 这样当kubelet启动时, 会自动检查这个目录, 加载所有的Pod YAML文件,
@@ -121,7 +121,7 @@ kubeadm就会使用上面这些信息替换/etc/kubernetes/manifests/kube-apiser
    使用docker.io源的原因是, docker公司每次发布的最新docker ce产品往往还没有经过kubernetes项目的
    验证, 可能会有兼容性方面的问题.
 2. 安装kubelet、kubeadm、kubectl
-   在所有节点上安装
+   在所有节点上安装, [[https://kubernetes.io/docs/setup/independent/install-kubeadm/][官方安装说明]]
    #+BEGIN_SRC text
 apt update && apt install -y apt-transport-https
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
@@ -132,6 +132,7 @@ EOF
 
 apt update
 apt install -y kubelet kubeadm kubectl
+apt-mark hold kubelet kubeadm kubectl  # 不让其更新, 正式环境需要如此设置
    #+END_SRC
 
    源可以换成: deb http://mirrors.ustc.edu.cn/kubernetes/apt kubernetes-xenial main
@@ -180,6 +181,32 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
    kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yaml
 7. 在Node节点执行命令
    执行master节点上的输出 kubeadm join
+
+** centos
+1. 设置kubeadm的yum安装源
+   #+BEGIN_SRC text
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+# baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+# 安装源换成aliyun
+baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+# repo_gpgcheck=1
+# gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+# exclude=kube*
+EOF
+setenforce 0
+
+yum install -y epel-release && yum clean all && yum makecache
+yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+systemctl enable kubelet && systemctl start kubelet   
+   #+END_SRC
+** k8s.grc.io不可用的解决方法
+docker.io厂库对google的容器做了镜像, 可以通过以下命令拉取相关镜像.
+1. docker pull mirrorgooglecontainers/xxxxx
+2. docker tag mirrorgooglecontainers/xxxxx k8s.grc.io/xxxxx
 
 ** 使用
 刚刚部署master节点后, 使用kubectl get nodes查看到该节点的状态是"NotReady".
@@ -253,7 +280,6 @@ kubectl get pods -n rook-ceph
 此时一个基于Rook持久化存储集群就以容器的方式运行起来了, 而在接下来的kubernetes项目上创建的所有
 Pod就能够通过Persistent Volumen(PV)和Persistent Volume Claim(PVC)的方式, 在容器里挂载由Ceph提供
 的数据卷了.
-
 
 ** kubectl describe的使用
 如果对pod有疑问, 可以使用kubectl describe pod <pod-name> 来查看信息, 需要重点注意Events.

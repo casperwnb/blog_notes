@@ -47,3 +47,10 @@ sha256:1db8f64748875d822a7b06a961b01f3427628295008102e4f8599f61af9ea8ff
 kubeadm join 10.211.55.6:6443 --token i277go.47nv5y1zxnyamqge \
 --discovery-token-ca-cert-hash \
 sha256:614f69cb5af1f5299d1ea68d3eac6f3c767d8d2e59d24aa4f4c64bf176bb60ec
+
+* kubernetes周边
+[[https://github.com/gjmzj/kubeasz][使用ansible部署k8s]]
+[[https://github.com/SongCF/kubesh][k8s集群安装脚本]]
+https://github.com/anjia0532/gcr.io_mirror: k8s.gcr.io镜像
+[[https://github.com/kubernetes-incubator/kubespray][k8s集群]]
+

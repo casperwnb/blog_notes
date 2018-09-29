@@ -1,0 +1,39 @@
+* go mod使用
+** 概念介绍
+module是一个相关GO包的集合, 是源代码更替和版本控制的单元.
+模块由源文件形成的go.mod文件的根目录定义, 包含go.mod文件的目录被称为模块根目录.
+go.mod文件定义模块路径, 并且列出了在项目构建过程中使用的特定版本.
+
+go.mod使用//注释, 文件的每一行都有一个指令, 由一个动作加上参数组成. 如:
+#+BEGIN_SRC go
+module my/thing
+require new/thing v2.3.4  // 项目依赖的包以及版本
+exclude old/thing v1.2.3  // 排除特定的包
+replace bad/thing v1.4.5 => good/thing v1.4.5  // 取代当前项目中的某些依赖包
+#+END_SRC
+相同的动作命令可以放到一个动词+括号组成的结构中. 如:
+#+BEGIN_SRC go
+require (
+  new/thing v1.2
+  old/thing v1.3
+)
+#+END_SRC
+
+** 其他命令支持
+最新版本的go build 命令增加了-mod 参数, 用来对go.mod文件进行更新或其他使用控制.
+mod的取值有: readonly, release, vendor.
+go build -mod=vendor 会在生成可执行文件的同时将项目的依赖包放在主模块的vendor目录下.
+go get -m [packages]  将下载的依赖包放到GOPATH/pkg/mod目录下, 并将依赖写入到go.mod文件中.
+go get -u=patch更新主模块下的所有依赖包.
+
+** go mod 工具
+go mod [cmd] [args]
+cmd的取值有:
+download: 下载模块到本地缓存, 可以通过go env查看, 其中环境变量GOCACHE就是缓存地址,
+          如果该文件的内容太大, 可以通过go clean -cache清除 
+edit: 从工具或脚本中编辑go.mod文件
+graph: 打印模块需求图
+init: 在当前目录下初始化新的模块
+tidy: 添加缺失的模块以及移除无用的模块
+verify: 验证依赖项是否达到预期的目的
+why: 解释为什么需要包或模块
