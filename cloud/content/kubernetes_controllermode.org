@@ -49,3 +49,138 @@ for {
 
 在所有API对象的metadata里, 都有一个字段叫做ownerReference, 用于保存当前这个Api对象的拥有者的信息.
 
+* Deployment的作业副本与水平扩展
+** deployment
+deployment实际上是一个两层控制器.
+1. 通过replicaset的个数来描述应用的版本
+2. 通过replicaset的属性来保证Pod的副本数量
+即: deployment控制replicaset(版本), replicaset控制Pod(副本数).
+
+** 作业副本
+Deployment实现了kubernetes项目中一个非常重要的功能: Pod的"水平扩展/收缩
+(horizontal scaling out/in)", 该功能是从PaaS时代开始一个平台级项目就必须具备的编排能力.
+
+如果更新了Deployment的Pod模板, 则Deployment就需要遵循一种叫做"滚动更新"(rolling update)的方式,
+来升级现有的容器. 该功能的实现依赖的是kubernetes中一个非常重要的概念(API对象): ReplicaSet
+
+ReplicaSet的结构如下:
+#+BEGIN_SRC yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: nginx-set
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.7.9
+#+END_SRC
+从该Yaml文件中发现, 一个replicaset对象其实就是由副本数目的定义和一个Pod模板组成的. 它的定义是一个
+deployment的一个子集.
+
+Deployment控制器实际操纵的正是这样的ReplicaSet对象, 而不是Pod对象.对于一个deployment所管理的Pod,
+它的ownerReference是ReplicaSet.
+
+[[file:~/Learn_space/blog_notes/cloud/images/deployment_replicaset_pod_relation.png][deployment replicaset和pod的关系链]], 通过这张图可以发现, Deployment ReplicaSet和Pod的关系实际上是
+一种"层层控制"的关系.
+其中ReplicaSet负责通过"控制器模式", 保证系统中Pod的个数永远等于指定的个数(如3), 这也正是Deployment
+只允许容器的restartPolicy=Always的主要原因: 只有在容器能够保证自己始终是Running状态的前提下,
+replicaSet调整Pod的个数才有意义.
+在此基础上, Deployment通过"控制器模式"来操作ReplicaSet的个数和属性, 进而实现"水平扩展/收缩"和"滚动
+更新"这两个编排动作.
+
+"水平扩展/收缩"的实现只需要Deployent controller修改它所控制的ReplicaSet的Pod副本个数就可以了.
+命令为: kubectl scale deployment nginx-deployment --replicas=4
+
+** 滚动更新
+将一个集群中正在运行的多个Pod版本交替地逐一升级的过程, 就是"滚动更新".
+kubectl create -f nginx-deployment.yaml --record  # 记录下每次操作所指向的命令, 以方便后面查看
+
+kubectl get deployments  # 查看deployments的信息
+在返回结果中可以看到4个状态字段, 含义如下:
+1. Desired: 用户期望的Pod副本个数(spec.replicas的值)
+2. current: 当前处于running状态的pod的个数
+3. UP-to_date: 当前处于最新版本的Pod的个数, 所谓最新版本指的是Pod的Spec部分与Deployment里Pod模板
+   里定义的完全一致
+4. available: 当前已经可用的pod的个数, 即: 既是running状态又是最新版本, 并且以及处于ready状态
+   的Pod个数
+只有available字段描述的才是用户所期望的最终状态.
+
+kubectl rollout status  # 实时查看deployment对象的状态变化
+kubectl get rs  # 查看deployment所控制的replicaset
+
+在用户提交了一个deployment对象后, deployment controller会立即创建一个pod副本为N的replicaset, 该
+replicaset的名字则是由deployment的名字和一个随机字符串共同组成. 这个随机字符串叫做
+pod-template-hash, replicaset会把这个随机字符串加在它所控制的所有Pod的标签里, 从而保证这些Pod不会
+与集群里的其他Pod混淆.
+
+deploymentz只是在replicaset的基础上, 添加了up-to-date这个跟版本有关的状态字段.
+
+kubectl edit deployment/nginx-deployment  # 修改deployment, 该命令会直接打开nginx-deployment的
+API对象, 然后可以修改这里的Pod模板部分.
+kubectl edit会将API对象的内容下载到本地文件, 修改完之后再提交上去.
+
+** 滚动更新的好处
+在升级刚开始的时候, 集群里只有1个新版本的Pod. 如果新版本有问题启动不了, 那么"滚动更新"就会停止,
+从而允许开发和运维人员介入, 此时,由于应用本身还有旧版本的Pod在线, 所以服务并不会受太大影响.
+这要求需要使用Pod的Health Check机制检查应用的运行状态, 而不是简单的依赖于容器的Running状态. 不然
+虽然容器是Running, 但服务很有可能尚未启动, "滚动更新"的效果也就达不到了.
+
+Deployment Controller还会确保, 在任何时间窗口内, 只有指定比例的Pod处于离线状态, 也会确保只有指定
+比例的新Pod被创建出来, 这个比例的值都是可以配置的, 默认都是DESIRED值的25%.
+
+例如: 在一个有3个Pod副本的Deployment中, 控制器在"滚动更新"的过程中永远都会确保至少有2个Pod处于
+可用状态, 最多有4个Pod同时存在于集群中. 该策略是Deployment对象的一个字段, RollingUpdateStrategy
+#+BEGIN_SRC yaml
+...
+spec:
+  ...
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1  # 除了DESIRED数量之外, 在一次"滚动"中, Deployment控制器还可以创建多少个新Pod
+      maxUnavailable: 1  # 在一次滚动中, deployment控制器可以删除多少个旧Pod
+      # 以上两个字段还可以使用百分比形式表示, 如: maxUnavailable=50%, 即50%*DESIRED
+#+END_SRC
+
+[[file:~/Learn_space/blog_notes/cloud/images/deployment_replicaset_pod_relation_ex.png][deployment replicaset和Pod的扩展关系]]
+deployment实际上控制的是replicaset的数目, 以及每个replicaset的属性.
+一个应用的版本, 对应的正是一个replicaset, 这个版本应用的pod数量, 则由replicaset通过它自己的控制器
+(replicaset controller)来保证.
+通过这样的多个replicaset对象, kubernetes项目就实现了对多个"应用版本"的描述.
+
+** deployment对应用进行版本控制的原理
+kubectl set image deployment/nginx-deployment nginx=nginx:1.91  # 修改使用的镜像
+kubectl rollout undo deployment/nginx-deployment  # 将整个deployment回滚到上一个版本
+
+如果想回滚到更早之前的版本, 如何操作呢?
+1. 需要使用kubectl rollout history deployment/nginx-deployment 查看每次deployment变更对应的版本.
+   kubectl rollout history deployment/nginx-deployment --revision=2  # 查看详细信息
+2. 在kubectl rollout undo deployment/nginx-deployment --to-revision=2 回滚到指定的版本
+   这样deployment controller还会按照"滚动更新"的方式, 完成对Deployment的降级操作.
+
+每次对deployment进行的每一次更新操作, 都会生成一个新的replicaset对象, 这有些多余, 因此kubect提供
+了另一个指令, 可以对deployment的多次更新操作最后只生成一个replicaset. 具体做法是:
+在更新deployment前, 执行kubectl rollout pause deployment/nginx-deployment, 这会让这个deployment
+进入一个"暂停"状态, 之后就可以随意使用kubectl edit, kubectl image指令修改这个deployment的内容了.
+由于此时deployment处于"暂停"状态, 所以我们对deployment的所有修改都不会触发新的"滚动更新", 也不
+会创建新的replicaset.
+
+kubectl rollout resume  # 恢复deployment
+
+随着应用版本的不断增加, kubernets中还是会为同一个deployment保存很多不同的replicaset, 可以通过
+控制deployment对象中的spec.revisionHistoryLimit来控制保留"历史版本"个数, 如果设置为0, 就再也不能
+做回滚操作了.
+** 思考题
+金丝雀发布(Canary Deployment)和蓝绿发布(Blue-Green Deployment).
+[[https://github.com/ContainerSolutions/k8s-deployment-strategies/tree/master/canary][多种应用发布模式]]

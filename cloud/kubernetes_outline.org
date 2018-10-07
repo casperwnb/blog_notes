@@ -6,6 +6,8 @@
 
 * 编排 - "控制器"模型
 [[file:content/kubernetes_controllermode.org][容器编排的"控制器"模型]]
+* StatefulSet
+[[file:content/kubernetes_statefulset.org][StatefulSet]]
 
 * kubernetes常用命令
 kubectl get namespaces  # 获取命名空间
@@ -20,6 +22,7 @@ kubectl get pods -n kube-system  # 查看节点上各个系统Pod的状态, kube
 
 kubectl taint nodes --all node-role.kubernetes.io/master-  # 删除默认的taint, 其中的"-"表示移除
 所有以"node-role.kubernetes.io/master"为键的taint
+kubectl taint nodes <nodename> key=value：NoSchedule  # 给某个节点打上taint
 
 kubectl describe pods  # 查看默认命名空间下的pods的信息
 kubectl describe pod <podname> --namespace=<namespace>  # 查看pod的具体信息
@@ -33,6 +36,42 @@ kubectl get services  # 查看服务状态
 kubectl label pod <podname> app=v1  # 给podname添加对应的标签
 kubeadm token list  # 查看kubeadmin token信息
 kubectl get secrets
+
+kubectl create -f <xx.yaml>  # 创建对象
+kubectl replace -f <xx.yaml>  # 升级对象
+kubectl apply -f <xx.yaml>  # 执行对象的升级或创建
+kubectl delete -f <xx.yaml>  # 删除
+
+kubectl exec -ti <pod-name> -- <cmd>  # 在某个pod中执行命令
+
+kubectl create secret generic <key> --from-file=<xx.txt>  # 创建secret对象
+kubectl get secret  # 获取secret
+kubectl delete secret <secretname>  # 删除secret
+
+kubectl create configmap <configmap-name> --from-file=xxx.txt
+kubectl get configmap
+kubectl logs -f <pod-name>  # 查看某个pod的日志输出
+
+kubectl scale deployment <deploymenname> --replicas=<x>  # 扩展或收缩
+kubectl apply -f <xx.yaml> --record  # 记录每次操作所执行的命令
+
+kubectl get deployment  # 查看deployment信息
+kubectl rollout status deployment/<deployment-name>  # 获取deployment的升级信息
+kubectl edit deployment/<deployment-name>  # 编辑deployment信息
+kubectl set image deployment <deployment-name> nginx=nginx:1.91  # 设置nginx的镜像为nginx:1.91
+kubectl rollout undo deployment <deployment-name>  # 回滚到上一个版本
+kubectl rollout history deployment <deployment-name>  # 查看操作历史
+kubectl rollout history deployment <deployment-name> --revision=x  # 查看具体某个版本的操作信息
+kubectl rollout undo deployment <deployment-name> --to-revision=x  # 回滚到指定的版本
+kubectl rollout pause deployment <deployment-name>  # 暂停某个deployment
+kubectl rollout resume deploy <deployment-name>  # 恢复某个deployment记录
+
+kubectl get rs  # 获取replicaset信息
+kubectl get statefulset  # 查看statefulset信息
+
+# 在某个namespace下,临时运行一个Pod
+kubectl run -i --tty --image busybox dns-test --restart=Never --rm /bin/sh --namespace xx
+
 
 * 在线交互环境
 https://kubernetes.io/docs/tutorials/kubernetes-basics

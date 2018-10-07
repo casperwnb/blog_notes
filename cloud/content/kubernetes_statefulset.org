@@ -1,0 +1,308 @@
+* StatefulSet - 拓扑状态
+** 介绍
+deployment实际上并不足以覆盖所有的应用编排问题. 原因是deployment认为一个应用的所有Pod是完全一样的,
+他们之间没有顺序, 也无所谓运行在哪台宿主机上, 需要的时候deployment就可以通过Pod模板创建新的Pod,
+不需要的时候就删掉任意一个Pod. 但实际场景中, 并不是所有的应用都可以满足这样的要求.
+尤其是分布式应用, 多个实例之间往往有依赖关系, 如: 主从关系、主备关系等.
+
+还有就是数据存储类应用, 它的多个实例, 往往都会在本地磁盘上保存一份数据, 而这些示例一旦被杀掉, 即便
+重新建立出来, 示例与数据之间的对应关系也丢失了, 从而导致应用失败.
+
+这种实例之间有不对等关系以及实例对外部数据有依赖关系的应用, 就被称为"有状态应用
+(stateful application)".
+
+得益于"控制器模式"的设计思想, kubernetes在deployment的基础上扩展除了对"有状态应用"的初步支持,
+这个编排功能就是"StatefulSet".
+
+它把真实世界里的应用状态, 抽象为了两种情况:
+1. 拓扑状态
+   此情况下应用的多个实例之间不是完全对等的关系, 这些应用实例必须按照某些顺序启动, 比如应用的主
+   节点A要先于节点B启动, 而如果把A和B两个Pod删除掉, 它们再次被创建出来时也必须严格按照这个顺序才行
+   并且新创建出来的Pod必须和原来Pod的网络标识一样, 这样原先的访问者才能使用同样的方法访问到这个
+   新Pod
+2. 存储状态
+   应用的多个实例分别绑定了不同的存储数据, 对于这些应用实例来说, Pod A第一次读取到的数据和隔了
+   一段时间后再次读取到的数据应该是同一份, 哪怕期间Pod A被重新创建过.
+
+StatefulSet的核心功能, 就是通过某种方式记录这些状态, 然后在Pod被重新创建时,
+能够为新Pod恢复这些状态.
+
+** Headless Service
+Service是kubernetes项目中用来将一组Pod暴露给外界访问的一种机制. 该Service又是如何被访问的呢?
+第一种方式: 以Service的VIP(virtual IP, 即: 虚IP)方式. 比如: 访问10.0.23.1这个Service的IP地址时
+10.0.23.1就是一个VIP, 会将请求转发到该Service所代理的某一个Pod上.
+
+第二种方式: 以Service的DNS方式. 如: 访问"my-svc.mynamespace.svc.cluster.local"这条DNS记录, 就可以
+访问到名叫my-svc的service所代理的某个Pod.
+
+Service DNS的方式具体还可以分两种处理方法:
+1. Normal Service
+   访问my-svc.mynamespace.svc.cluster.local解析到的, 正是my-svc这个service的VIP, 后面就跟VIP方式
+   一致了
+2. Headless Service
+   访问my-svc.mynamespace.svc.cluster.local解析到的, 直接就是my-svc代理的某一个Pod的IP地址.
+   此处Headless Service不需要分配一个VIP, 而是直接以DNS记录的方式解析出被代理Pod的IP地址.
+
+   #+BEGIN_SRC yaml  Headless Service的Yaml文件
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None
+  selector:
+    app: nginx
+   #+END_SRC
+Headless Service仍然是一个标准Service的Yaml文件, 只是其clusterIP字段的值为None, 即该service没有
+一个VIP作为"头". 这也是headless的含义, 所以该service被创建后并不会被分配一个VIP, 而是以DNS记录的
+方式暴露出它所代理的Pod. 而它所代理的Pod, 依然采用Label Selector机制选择出来, 即所有携带了
+app=nginx标签的Pod, 都会被这个service代理起来.
+
+当按照此方法创建了一个Headless service之后, 它所代理的所有Pod的Ip地址都会被绑定一个这样格式的
+DNS记录, 如下:
+<pod-name>.<svc-name>.<namespace>.svc.cluster.local
+这个DNS记录正是kubernetes项目为Pod分配的唯一的"可解析身份(resolvable identity)".
+有了这个"可解析身份", 只要知道了一个Pod的名字, 以及它对应的Service的名字, 就可以非常确定地通过
+这条DNS记录放到Pod的IP地址.
+
+** StatefulSet又是如何使用这个DNS记录来维持Pod的拓扑状态
+#+BEGIN_SRC yaml StatefulSet的Yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  serviceName: "nginx"
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.9.1
+        ports:
+        - containerPort: 80
+          name: web
+#+END_SRC
+serviceName字段指明了StatefulSet控制器, 在执行控制循环的时候, 使用nginx这个Headless Service来保证
+Pod的"可解析身份".
+
+创建之后, 可以使用 kubectl get statefulset web  来查看信息.
+kubectl get pods -w -l app=nginx  # -w即watch功能, 实时查看statefulset创建两个有状态实例的过程
+statefulSet给它所管理的所有Pod的名字进行了编号, 编号规则是使用"-"进行连接, 编号从0开始累加, 与
+statefulset的每个Pod实例一一对应, 绝不重复.
+更重要的是, 这些Pod的创建, 也是严格按照标号顺序进行的, 如: 在web-0进入到Running状态并且细分
+状态称为Ready前, web-1一直处于pending状态.
+当Pod都进入Running状态后, 就可以查看他们各自唯一的"网络身份了". 如:
+kubectcl exec web-0 -- sh -c 'hostname'
+
+试着以DNS的方式, 访问一下这个Headless Service:
+kubectl run -i --tty --image busybox dns-test --restart=Never --rm /bin/sh  # 启动一个一次性的
+Pod, 然后在这个Pod的容器里尝试用nslookup命令解析一下Pod对应的Headless Service
+nslookup web-0.nginx
+
+注意: 在执行nslookup时, 可能会无法解析该域名, 但是是可以ping通的, 多试几次就会有几次会有正确结果
+或者可以使用ubuntu镜像来做测试, 效果会好一些.
+
+此时如果删除这"有状态应用"的Pod, kubectl delete pod -l app=nginx.
+kubernetes会按照原先编号的顺序, 创建出两个新的Pod, 并且kubernetes依然为他们分配了与原来相同的
+"网络身份".
+
+通过这种严格的对应规则, StatefulSet就保证了Pod网络标识的稳定性.
+
+通过这种方法, kubernetes就成功的将Pod的拓扑状态(如: 哪个节点先启动, 哪个节点后启动), 按照Pod的
+"名字+编号"的方式固定了下来. kubernetes还为每个Pod提供了一个固定并且唯一的访问入口, 即这个Pod
+对应的DNS记录.
+
+这些状态在Statefulset的整个生命周期里都会保持不变, 绝不会因为对应Pod的删除或者重新创建而失效.
+
+对于"有状态应用"实例的访问, 必须使用DNS记录或者hostname的方式, 绝对不应该直接访问这些pod的IP地址
+
+* StatefulSet - 存储状态
+** 存储状态的管理机制
+主要使用的是: Persistent Volume Claim
+#+BEGIN_SRC yaml ceph RBD类型Volume的Pod
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rdb
+spec:
+  containers:
+    - image: kubernetes/pause
+      name: rbd-rw
+      volumentMounts:
+      - name: rbdpd
+        mountPath: /mnt/rbd
+  volumes:
+  - name: rbdpd
+    rbd:
+      monitors:
+      - '10.16.154.78:6789'
+      - '10.16.154.82:6789'
+      pool: kube
+      image: foo
+      fsType: ext4
+      readOnly: true
+      user: admin
+      keyring: /etc/ceph/keyring
+      imageformat: "2"
+      imagefeatures: "layering"
+#+END_SRC
+该配置文件存在两个问题:
+1. 如果不懂得Ceph RBD的使用方法, 那么这个Pod里Volumes字段就不容易看懂
+2. 这个ceph rbd对应的存储服务器的地址、用户名、授权文件的位置, 也被轻易的暴露了
+
+这也就是kubernetes引入了一组叫做Persistent Volume Claim(PVC)和Persistent Volume(PV)的API对象,
+大大的降低了用户声明和使用持久化Volume的门槛.
+
+** PVC - 使用volume的一个例子
+1. 定义一个PVC, 声明想要的Volume的属性
+   #+BEGIN_SRC yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+   #+END_SRC
+   该PVC对象里, 不需要任何关于Volume细节的字段, 只有描述性的属性和定义.
+   accessModes: ReadWriteOnce表示该Volume的挂载方式是可读写, 并且只能被挂载在一个节点上
+   而非被多个节点共享.
+   [[https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes][Volume支持的accessMode]]
+2. 在应用的Pod中, 声明使用这个PVC
+   #+BEGIN_SRC yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pv-pod
+spec:
+  containers:
+  - name: pv-container
+    image: nginx
+    ports:
+    - containerPort: 80
+      name: "http-server"
+    volumeMounts:
+    - mountPath: "/usr/share/nginx/html"
+      name: pv-storage
+  volumes:
+  - name: pv-storage
+    persistentVolumeClaim:
+      claimName: pv-claim
+   #+END_SRC
+   该Pod的volumes定义中, 只需要声明它的类型是persistentVolumeClaim, 然后指定PVC的名字, 完全不必
+   关心volume本身的定义.
+
+   此时, 只要创建这个pvc对象, kubernetes就会自动为它绑定一个符合条件的volume. 这些符合条件的
+   volume是来自于运维人员维护的PV(Persistent Volume)对象. PV的一个Yaml示例:
+   #+BEGIN_SRC yaml
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: pv-volume
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 10Gi
+  rbd:
+    monitors:
+    - '10.16.154.78:6789'
+    - '10.16.154.82:6789'
+    pool: kube
+    image: foo
+    fsType: ext4
+    readOnly: true
+    user: admin
+    keyring: /etc/ceph/keyring
+    imageformat: "2"
+    imagefeatures: "layering"
+   #+END_SRC
+   该PV对象的spec.rbd字段, 正是前面介绍过的ceph rbd volume的详细定义. 这样kubernetes就会为我们
+   刚刚创建的PVC对象绑定这个PV.
+
+   kubernetes中PVC和PV的设计, 类似于"接口"和"实现"的思想.
+   开发者只要知道并会使用"接口", 即PVC. 运维人员则负责给"接口"绑定具体的实现, 即: PV.
+
+   PVC, PV的设计也使得statefulset对存储状态的管理成为了可能.
+   #+BEGIN_SRC yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  serviceName: "nginx"
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.9.1
+        ports:
+        - containerPort: 80
+          name: web
+        volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+  volumeClaimTemplates:
+  - metadata:
+      name: www
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+   #+END_SRC
+   为StatefulSet额外添加了一个volumeClaimTemplates字段, 凡是被这个StatefulSet管理的Pod, 都会声明
+   一个对应的PVC, 该PVC就是来自volumeClaimTemplates这个模板字段. 并且该PVC的名字会分配一个与这
+   个Pod完全一致的编号
+   
+   该自动创建的PVC与PV绑定成功后, 就会进入Bound状态, 意味着该Pod可以挂载并使用这个PV了
+   
+   PVC就是一种特殊的Volume, 只是PVC具体是什么类型的Volume, 是要在跟某个PV绑定之后才知道.
+   PVC与PV的绑定得以实现的前提是: 运维人员已经在系统里创建好了符合条件的PV, 或者kubernetes集群
+   运行在公有云上, 此时kubernetes就会通过Dynamic Provisioning的方式自动创建与PVC匹配的PV.
+   kubectl get pvc -l app=nginx # 获取pvc
+   
+   PVC都以"<PVC名字>-<StatefulSet名字>-<编号>"的方式命名, 并且处于Bound状态.
+
+** StatefulSet控制器恢复Pod的过程
+1. 将一个Pod, 如web-0删除之后, 该Pod对应的PVC和PV并不会被删除, 且这个Volume里已经写入的数据
+   依然会保存在远程存储服务里.
+2. StatefulSet控制器发现一个名叫"web-0"的Pod消失了, 所以控制器就会重新创建一个新、名字还是叫做
+   web-0的Pod来"纠正"这个不一致的情况.
+   注意: 该新Pod对象的定义里, 声明使用的PVC的名字还是叫做www-web-0. 该PVC的定义还是来自于PVC模板
+   这是statefulset创建Pod的标准流程
+
+   在新web-0 Pod被创建出来之后, kubernetes为它查找名叫www-web-0的PVC时, 就会直接找到旧Pod遗留下来
+   的同名PVC, 进而找到跟这个PVC绑定在一起的PV, 这样新Pod就可以挂载到旧Pod对应的那个Volume, 且获取
+   到保存在volume里的数据.
+
+   通过该方式, kubernetes的statefulset就实现了对应用存储状态的管理.
+
+总结一下Statefulset的工作原理:
+1. statefulset的控制器直接管理的是Pod
+2. 通过headless service为这些有编号的Pod, 在DNS服务器中生成带有同样编号的DNS记录
+3. StatefulSet还为每个Pod分配并创建一个同样编号的PVC.

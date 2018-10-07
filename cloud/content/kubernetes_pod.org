@@ -3,6 +3,9 @@ docker的本质就是"Namespace做隔离, Cgroups做限制, rootfs做文件系�
 容器就是未来云计算系统中的进程, 容器镜像就是这个系统里的".exe"安装包, 因此kubernetes就类似于
 "操作系统".
 
+Pod这个概念提供的是一种编排思想, 而不是具体的技术方案, 完全可以使用虚拟机来作为Pod的实现, 例如:
+Mirantis公司的[[https://github.com/Mirantis/virtlet][Virtlet项目]]
+
 pstree -g  # 展示当前系统中正在运行的进程的树状结构.
 
 在一个操作系统里, 进程并不是"孤苦伶仃"地独自运行的, 而是以进程组的方式有"原则的"组织在一起, 在
@@ -22,8 +25,10 @@ kubernetes项目的调度器统一按照Pod而非容器的资源需求进行计�
 * Pod实现原理
 Pod在kubernetes项目里还有更重要的意义, 就是: 容器设计模式
 Pod只是一个逻辑概念, 即kubernetes正真处理的还是宿主机操作系统上Linux容器的Namespace和Cgroups, 并
-不存在一个所谓的Pod的边界或者隔离环境. Pod的本质是一组共享了某些资源的容器. 具体说: Pod里的所有
-容器共享的是同一个Network namespace, 并且可以声明共享同一个Volume.
+不存在一个所谓的Pod的边界或者隔离环境.
+
+Pod的本质是一组共享了某些资源的容器. 具体说: Pod里的所有容器共享的是同一个Network namespace,
+并且可以声明共享同一个Volume.
 
 理解Pod的本质: 实际上是在扮演传统基础设施里"虚拟机"的角色, 容器这是这个"虚拟机"中运行的用户程序
 
@@ -88,6 +93,8 @@ spec:
 
    像这样用一种"组合"操作, 正是容器设计模式里最常用的一种模式, 它叫做sidecar.
    sidecar指的就是可以在一个Pod中, 启动一个辅助容器, 来完成一些独立于主进程(主容器)之外的工作.
+   [[https://www.usenix.org/conference/hotcloud16/workshop-program/presentation/burns][容器设计模式]]
+
 2. 容器的日志收集
    需要不断地把日志文件输出到容器的/var/log目录中, 这时就可以把一个pod里的volume挂载到应用容器
    的/var/log目录上. 这样, sidecar容器就只需要做一件事儿, 就是不断地从自己的/var/log目录里读取
@@ -223,6 +230,9 @@ ENTRYPOINT有可能还没有结束.
 preStop: 容器被杀死之前(如收到了SIGKILL信号), preStop操作的执行, 是同步的, 所以会阻塞当前的容器
 杀死流程, 直到这个Hook定义操作完成之后, 才允许容器被杀死.
 
+** Pod的Yaml文件中的内容
+可以查看k8s的源码: src/k8s.io/kubernetes/vendor/k8s.io/api/core/v1/tpyes.go
+
 * Pod对象在kubernetes中的生命周期
 Pod生命周期的变化, 主要体现在Pod API对象的status部分, 这是除了metadata和spec之外的第三个重要
 字段.
@@ -282,7 +292,7 @@ spec:
     args:
     - sleep 
     - "86400"
-    volumeMounts:
+    volumeMounts:  # Pod引用secret
     - name: mysql-cred
       mountPath: "/projected-volume"
       readOnly: true
@@ -345,7 +355,34 @@ kubectl create configmap ui-config --from-file=ui.properties
 kubectl get configmap ui-config -o yaml  # 查看configmap里保存的信息, -o yaml将指定的pod api对象
 以yaml的方式展示出来
 
+#+BEGIN_SRC yaml configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configdata
+data:
+  ui.properties: |  # 生成的文件名是ui.properties, 内容是color.good=purpel\ncolor.bad=yellow
+    color.good = purpel
+    color.bad = yellow
+  cache_host: memcache  # 生成的文件名为cache_host, 内容是memcache
+#+END_SRC
+
+#+BEGIN_SRC yaml pod引用configmap
+spec:
+  container:
+    volumeMounts:
+    - name: config-vol
+      mountPath: "/configdata"
+      readOnly: true
+
+  volumes:
+  - name: config-vol
+    configMap:
+      name: configdata
+#+END_SRC
 ** downward api
+[[https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/][官方downward api]]
+
 让pod里的容器能够直接获取到这个pod api对象本身的信息. 如:
 #+BEGIN_SRC yaml
 apiVersion: v1
@@ -362,7 +399,7 @@ spec:
     image: k8s.gcr.io/busybox
     command: ["sh", "-c"]
     args:
-    - while ture; do
+    - while true; do
         if [[ -e /etc/podinfo/labels ]]; then
           echo -en '\n\n'; cat /etc/podinfo/labels; fi;
         sleep 5;
@@ -373,13 +410,11 @@ spec:
       readOnly: false
   volumes:
   - name: podinfo
-    projected:
-      sources:
-        - downwardAPI:
-          items:
-          - path: "labels"
-            fieldRef:
-              fieldPath: metadata.labels
+    downwardAPI:
+      items:
+      - path: "labels"
+        fieldRef:
+          fieldPath: metadata.labels
 #+END_SRC
 该pod中的downward api volume则声明了要暴露pod的metadata.labels信息给容器.
 通过这样的声明方式,当前pod的labels字段的值就会被kubernetes自动挂载为容器里的/etc/podinfo/labels
@@ -461,8 +496,8 @@ spec:
         command:
         - cat
         - /tmp/healthy
-    initialDelaySeconds: 5
-    periodSeconds: 5
+      initialDelaySeconds: 5
+      periodSeconds: 5
 #+END_SRC
 这个Pod种, 定义容器启动之后在/tmp目录下创建一个healthy文件, 30s后会删除这个文件.
 30s后, 查看该pod的events, 会发现该Pod在Events报告了一个异常. 此时Pod的状态仍然是running.

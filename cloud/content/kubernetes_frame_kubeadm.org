@@ -14,6 +14,9 @@ kubernetes项目的架构由Master和Node两种节点组成, 分别对应着控�
 基于此只要容器运行时能够运行标准的容器镜像, 就可以通过实现CRI接入到kubernetes项目中.
 而具体的容器运行时比如docker项目, 则一般通过OCI容器运行时规范同底层的Linux操作系统进行交互.
 
+OCI(Open Container Initiative), 定义了容器运行时标准. runC是Docker按照开放容器格式标准(OCF,
+Open Container Format)制定的一种具体实现.
+
 kubelet还通过gRPC协议同一个叫做Device Plugin的插件进行交互. 该插件是kubernetes项目用来管理GPU等
 宿主机物理设备的主要组件, 也是基于kubernetes项目进行机器学习训练、高性能作业支持等工作必须关注
 的能力.
@@ -58,12 +61,14 @@ CronJob用于描述定时任务.
 kubeadm是一个容器部署工具. [[https://github.com/kubernetes/kubeadm][github地址]]
 kubeadm将kubelet直接运行在宿主机上, 然后使用容器部署其他的kubernetes组件.
 
+kubeadm生成的文件在/etc/kubernetes/pki目录中
+
 ** kubeadm init原理
 1. kubeadm首先是一系列的检查工作, 以确定这台机器可以用来部署kubernetes, 这一步检查称为"Preflight
    Checkes". 其检查包括了很多方面, 如:
    a. Linux内核的版本必须是否是3.10+
    b. Linux Cgroups模块是否可用
-   c. 机器的hosname是否标准. kubernetes项目中, 机器的名字以及一切存储在etcd中的api对象, 都必须使用
+   c. 机器的hosname是否标准,kubernetes项目中,机器的名字以及一切存储在etcd中的api对象, 都必须使用
    标准的DNS命名(RFC 1123)
    d. 用户安装的kubeadm和kubelet的版本是否匹配
    e. 机器上是否已经安装了kubernetes的二进制文件
@@ -72,7 +77,7 @@ kubeadm将kubelet直接运行在宿主机上, 然后使用容器部署其他的k
    h. docker是否已经安装
    i. ...
 2. 通过Preflight Checkes之后, kubeadm是生成kubernetes对外提供服务所需的各种证书和对应的目录.
-   kubernetes对外提供服务器时, 除非专门开启"不安全模式", 否则都要通过HTTPS才能访问kube-apiserver.
+   kubernetes对外提供服务器时,除非专门开启"不安全模式", 否则都要通过HTTPS才能访问kube-apiserver.
    kubeadm为kubernetes生成的证书文件都放在master节点的/etc/kubernetes/pki目录下.
    kubecl获取容器日志等streaming时, 需要通过kube-apiserver向kubelet发起请求,
    这个连接也必须是安全的, kubeadm为这一步生成的是apiserver-kubelet-client.crt文件,
@@ -110,8 +115,7 @@ apiserver上, 这样一个新的节点就部署完成了.
 ** 配置kubeadm的部署参数
 部署master节点时, 可以使用下面这条指令:
 kubeadm init --config kubeadm.yaml  # 通过提供一个YAML文件来创建
-
-kubeadm就会使用上面这些信息替换/etc/kubernetes/manifests/kube-apiserver.yaml里的cmmand字段
+kubeadm就会使用上面这些信息替换/etc/kubernetes/manifests/kube-apiserver.yaml里的command字段
 里的参数了.
 
 * kubernetes环境搭建
@@ -376,7 +380,7 @@ spec:
         ports:
         - containerPort: 80
         volumeMounts:
-        - mountPath: "/root/"
+        - mountPath: "/root/"  # 容器中的挂载目录
           name: nginx-vol
       volumes:
       - name: nginx-vol
@@ -399,7 +403,7 @@ kubernetes也提供了显式的volume定义, 它叫做hostPath, 例如:
 volumes:
 - name: nginx-vol
   hostPath:
-    path: "/var/data"
+    path: "/var/data"  # 将宿主机上的/var/data挂载到容器中的某个目录下
 #+END_SRC
 这样容器volume挂载的宿主机目录就变成了/var/data
 

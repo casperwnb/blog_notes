@@ -12,3 +12,9 @@ systemctl disable prltools_updater.service
 
 * Unable to locate package xx
 add-apt-repository universe
+* Cannot set LC_CTYPE to default locale
+1. 使用 locale -a 查看系统安装的编码
+2. 使用 locale-gen zh_CN.UTF-8 安装编码
+
+* ubuntu安装dig, nslookup等命令
+apt install dnsutils
