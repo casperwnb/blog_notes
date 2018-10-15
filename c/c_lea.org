@@ -257,6 +257,7 @@ int main() {
   return 0;
 }
 #+END_SRC
+
 * 随机数
 rand(), 头文件: cstdlib, 生成一个[0, RAND_MAX]闭区间内的一个数. RAND_MAX至少是32767(2^15 - 1)
 此处生成的随机数是"伪随机", 因为它是由数学公式计算出来的.
@@ -282,4 +283,5 @@ void test() {
 
 * 算法精解 - 读书笔记
 [[file:content/masteringalgorithwithccodeLea.org][算法精解读书笔记]]
+
 

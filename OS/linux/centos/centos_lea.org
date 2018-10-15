@@ -51,3 +51,9 @@ yum update -y packagename  # 更新包
    
    fc-cache  # 刷新内存中的字体缓存, 这样就不用重启
    fc-list  # 查看系统字体, 确认可以看到添加的字体名称
+* LC_CTYPE: cannot change locale (zh_US.UTF-8)
+vi /etc/locale.conf
+修改内容为:
+LC_ALL="zh_CN.utf8"
+LC_CTYPE="zh_CN.utf8"
+LANG="zh_CN.utf8"

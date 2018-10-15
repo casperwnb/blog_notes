@@ -801,7 +801,7 @@ func parse(input string) (s *Syntax, err error) {
 }
 #+END_SRC
 不加区分的恢复所有的panic异常是不可取的做法, 因为在panic之后, 无法保证包级变量的状态仍然和我们
-预期一致. 并且不应该试图去恢复其他包引起的panic, 公有的API应该讲函数的运行失败作为error返回,
+预期一致. 并且不应该试图去恢复其他包引起的panic, 公有的API应将函数的运行失败作为error返回,
 而不是panic.
 
 根据panic的类型来选择性的恢复:
@@ -819,6 +819,11 @@ func soleTitle(doc *html.Node) (title string, err error) {
     panic(bailout{})
 }
 #+END_SRC
+
+怎样让panic包含一个值, 以及应该让它包含什么样的值?
+调用panic时, 将某个值作为参数传给该函数就可以了, panic函数的唯一一个参数是空接口, 从语法上讲,
+它可以接受任何类型的值. 但最好传入error类型的错误值.
+
 ** 从panic被引发到程序终止运行时的大致过程
 大致过程: 某个函数中的某行代码有意或无意地引发一个panic, 这时初始的panic详情会被建立起来, 并且该
 程序的控制权会立即从此行代码转移至调用其所属函数的那行代码上, 即调用栈中的上一级. 即此行代码所属
