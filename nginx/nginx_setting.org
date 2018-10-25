@@ -51,3 +51,13 @@ server {
     }
 }
 #+END_SRC
+
+* nginx request entity too large
+原因: nginx会返回413, Request Entity Too large, nginx默认限制1M
+
+在nginx的配置文件中找到htt{...}, 在http中新增配置如下:
+client_max_body_size 20m;  // 设置body最大为20M
+
+然后重启nginx即可.
+
+

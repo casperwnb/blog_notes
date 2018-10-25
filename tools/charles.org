@@ -1,0 +1,19 @@
+* 配置代理
+1. 安装charles
+2. 打开charles->Proxy->Proxy Setting->Proxies页面
+   修改port为自己想要的值, 该值会在手机端用上
+3. 打开手机的wifi连接
+   设置HTTP代理 -> 手动 -> 输入运行charles的电脑的ip地址以及其端口号
+4. 点击charles->Help->SSL Proxying->install charles xxx on mobile
+   根据提示, 用safari打开链接, 在手机上安装证书
+5. 手机证书安装号之后, 打开手机的设置->General -> About -> Certificate Trust Testings
+   将charles的证书选择信任
+6. 在charles -> proxy -> SSL Proxying Settings -> SSl Proxying
+   勾选enable ssl proxying
+   然后添加内容, 例如: qy.aibaodata.com, port填: 443
+7. 在chrels -> SSL Proxying -> Install charles Root Certificate
+   在电脑上安装证书, 安装完成之后, 就可以使用charles抓包了
+
+* 使用
+开启charles后, 会有非常多的网站信息出现, 此时可以使用如下的方法来归类链接.
+View->Focused Hosts -> 根据规则填入需要关注的域名即可.

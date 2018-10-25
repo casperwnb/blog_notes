@@ -1,0 +1,41 @@
+* 编程入门
+web: [[https://developer.mozilla.org/zh-CN/docs/Learn/Getting_started_with_the_web][MDN的web开发入门]]
+html: [[https://developer.mozilla.org/zh-CN/docs/Web/HTML][MDN的html]]
+js: [[https://developer.mozilla.org/zh-CN/docs/Web/JavaScript][MDN的js开发]]
+css: [[https://developer.mozilla.org/zh-CN/docs/Web/CSS][MDN的css]]
+react: https://github.com/SangKa/react-roadmap
+xss: https://github.com/dwqs/blog/issues/68
+
+python: [[file:files/Python%E7%BC%96%E7%A8%8B(%E4%BB%8E%E5%85%A5%E9%97%A8%E5%88%B0%E5%AE%9E%E8%B7%B5).pdf][python编程-从入门到实践]]
+
+吴恩达机器学习: https://xiaqunfeng.gitbooks.io/machine-learning-yearning/content/
+
+** 技术变现套路总结
+1、程序员用手艺、技术养活自己，不依靠公司；
+2、提高工作效率，去研究那些难的，公司内外的核心技术；
+3、注重输出，输出技术、价值观，帮助更多的人，提高影响力。
+
+** 目前的状态
+1. 工作状态不好，工作上没有得到正向的反馈
+2. 下班后也没有进行有效的学习
+3. 整天都在纠结如何才能提高, 但是并没有做出实际的行动
+
+** 改进
+1. 每天早上7:15之前必须起床, 如果不能起床就罚款100
+2. 每天下班后在网上找一家公司,查看其工作要求
+3. 每天下班后都要进行技术学习和非技术的学习
+4. ARTS
+5. 如果你的信息来自朋友圈、微博、知乎、百度或是今日头条，那么就完了,
+   因为这些渠道有价值的信息不多, 有营养的可能只有1%. 因此需要用好google
+6. 最宝贵的不是钱而是时间, 因为钱不用还在那里, 时间不利用就浪费掉了.
+   将时间投资在什么地方, 就意味着未来会走什么样的路.
+7. 学习技术的过程中一定要多问这样两个问题?
+   该技术解决了什么问题?为什么别的同类技术做不到？
+   为什么是这样解决的?有没有更好的方式？
+
+** 其他
+https://www.begin.re/: 反向工程
+https://blog.websecurify.com/2018/06/router-hacking.html: 黑入router   
+https://go101.org/article/101.html: go 101
+https://www.interviewcake.com/data-structures-reference: data struct
+

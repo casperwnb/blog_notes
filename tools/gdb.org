@@ -1,0 +1,7 @@
+* GDB调试
+在函数中, 调试时如果不涉及到函数调用, s和n的作用一样.
+s  # step in的意思
+n  # next的意思
+
+call <funcname>  # 在gdb中调用某个函数
+

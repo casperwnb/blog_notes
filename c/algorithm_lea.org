@@ -118,7 +118,19 @@ int main() {
 
 ** 冒泡排序
 基本思想: 每次比较两个相邻的元素, 如果顺序错误就把他们交换过来
-
+#+BEGIN_SRC c
+void bubblesort(int *a, int n) {
+    for(int i=0; i<n-1; i++) {  // n个元素, 需要比较n-1趟
+        for(int j=0; j<n-i-1; j++) {  // 每一趟就会确定一个元素的正确位置
+            if(a[j] > a[j+1]) {
+                int t = a[j];
+                a[j] = a[j+1];
+                a[j+1] = t;
+            }
+        }
+    }
+}
+#+END_SRC
 
 * 算法学习技巧
 1. 边学边练, 适度刷题
