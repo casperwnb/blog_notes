@@ -6,6 +6,7 @@
 
 * 编排 - "控制器"模型
 [[file:content/kubernetes_controllermode.org][容器编排的"控制器"模型]]
+
 * StatefulSet
 [[file:content/kubernetes_statefulset.org][StatefulSet]]
 
@@ -72,7 +73,6 @@ kubectl get statefulset  # 查看statefulset信息
 # 在某个namespace下,临时运行一个Pod
 kubectl run -i --tty --image busybox dns-test --restart=Never --rm /bin/sh --namespace xx
 
-
 * 在线交互环境
 https://kubernetes.io/docs/tutorials/kubernetes-basics
 
@@ -93,3 +93,4 @@ sha256:614f69cb5af1f5299d1ea68d3eac6f3c767d8d2e59d24aa4f4c64bf176bb60ec
 https://github.com/anjia0532/gcr.io_mirror: k8s.gcr.io镜像
 [[https://github.com/kubernetes-incubator/kubespray][k8s集群]]
 
+kubespray, kubeadm, kubeasz, kops

@@ -99,10 +99,3 @@ docker commit <containerid> xxx:tag  # 将运行的容器提交为一个新的�
 * 构造容器
 [[file:content/buildmydocker.org][构造容器]]
 
-* kubernetes
-[[file:content/kubernetes.org][kubernetes笔记]]
-
-[[https://github.com/gjmzj/kubeasz][kubeasz-k8s部署使用的ansible脚本]]
-
-kubespray, kubeadm, kubeasz, kops
-
