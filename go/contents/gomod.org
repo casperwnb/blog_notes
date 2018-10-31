@@ -11,6 +11,7 @@ require new/thing v2.3.4  // 项目依赖的包以及版本
 exclude old/thing v1.2.3  // 排除特定的包
 replace bad/thing v1.4.5 => good/thing v1.4.5  // 取代当前项目中的某些依赖包
 #+END_SRC
+
 相同的动作命令可以放到一个动词+括号组成的结构中. 如:
 #+BEGIN_SRC go
 require (

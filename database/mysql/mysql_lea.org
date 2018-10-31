@@ -6,6 +6,10 @@ MySQL 的utf8是一种"专属的编码", 它能够编码的 Unicode 字符并不
 
 [[https://mathiasbynens.be/notes/mysql-utf8mb4][将mysql中的utf8转为utf8mb4]]
 
+* Mysql存储表情符号
+1. 数据库的字符编码需要设置为utf8mb4
+2. 连接数据库时, charset需要设置为utf8mb4
+
 * Mysql 常用语句
 mysql -h <addr> -P <port> -u <user> -p <pwd>
 

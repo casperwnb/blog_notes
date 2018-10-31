@@ -40,7 +40,7 @@ yum update -y packagename  # 更新包
 2. 拷贝windows中需要的中文字体文件
    windows的字体文件路径: C:\\windows\\Fonts
 3. 在centos系统中新建目录
-   mkdir /usr/shared/fonts/chinese
+   mkdir /usr/share/fonts/chinese
    然后将中文字体文件拷贝到该目录下
 4. 执行命令
    chmod 755 -R /usr/shared/fonts/chinese

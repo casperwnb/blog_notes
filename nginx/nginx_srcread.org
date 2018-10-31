@@ -1,0 +1,43 @@
+* VS CODE 调试Nginx环境搭建
+** 编译运行Nginx
+1. 下载源码, 修改源码目录下的 auto/cc/conf文件, 将ngx_compile_opt="-c" 改为ngx_compile_opt="-c -g"
+2. 在源码目录下执行 ./configure --prefix=<nginx源码目录>, 如果遇到类似"requires the PCRE library"
+   错误, 安装pcre, brew install pcre
+3. 在源码目录下执行make
+4. 在nginx的安装目录下执行 ./objs/nginx, 打开浏览器访问127.0.0.1就能看到效果
+
+** 调试master进程
+1. 关掉nginx的守护进程运行方式, 在conf/nginx.conf中添加一行: daemon off;
+2. 添加VSCode调试配置
+   创建并修改launch.json
+   #+BEGIN_SRC text
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "nginx",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/objs/nginx",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "lldb"
+        }, // 后面可以接着添加attach的配置信息
+   ]
+}
+   #+END_SRC
+
+** 调试Worker进程
+编辑launch.json, 添加配置
+#+BEGIN_SRC text
+{ 
+    "name": "(lldb) Attach",
+    "type": "cppdbg",
+    "request": "attach",
+    "program": "${workspaceFolder}/objs/nginx",
+    "processId": "80636", // 填写 Worker 进程 PID
+    "MIMode": "lldb"
+},
+#+END_SRC

@@ -89,9 +89,6 @@ go doc http.ListenAndServe  # 在本地查看ListenAndServe的注释信息
 // <funcName> xxx
 func funcName() {}
 
-* go mod使用
-[[file:contents/gomod.org][go mod使用]]
-
 * GO基础知识
 [[file:contents/goBase.org][Go基础知识]]
 
@@ -99,6 +96,7 @@ func funcName() {}
 [[file:contents/goAdvance01.org][go高阶知识01]]
 [[file:contents/goAdvance02.org][go高阶知识02]]
 [[file:contents/goAdvance03.org][go高阶知识03]]
+[[file:contents/goAdvance04.org][go高阶知识04]]
 
 * Go画图
 GIF动画 P34
@@ -106,7 +104,10 @@ GIF动画 P34
 * Go库
 [[file:contents/goLibrary.org][Go标准库]]
 
-* Go官方版本管理工具 - dep
+* go mod使用
+[[file:contents/gomod.org][go mod使用]]
+
+* Go官方版本管理工具 - dep go1.11版本前
 ** 安装
 [[https://github.com/golang/dep][github地址]]
 
@@ -189,6 +190,7 @@ go install github.com/Masterminds/glide
 2. 阅读算法, 里边的所有的算法都用go实现一遍
 3. 使用go编写一个博客系统
 4. 阅读一个go编写的框架, 如gin框架
+
 * Go经典问题
 ** 字典遍历
 #+BEGIN_SRC go
@@ -205,7 +207,7 @@ func pase_student() map[string]*student {
 		{Name: "wang", Age: 22},
 	}
 
-    for _, stu := rage stus {
+    for _, stu := range stus {
         m[stu.Name] = &stu
     }
 
