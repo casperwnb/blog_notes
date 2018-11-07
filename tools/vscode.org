@@ -1,5 +1,25 @@
 * VS Code
+** 编辑器选择的考虑因素
+1. 对文本、代码的编辑效果效率要求有多高
+2. 这个编辑器对编程语言的支持如何, 配置是否繁琐
+3. 它的插件生态如何, 能否满足我的需求
+
+一款编辑器或者IDE的"下限", 一般是由它默认自带的功能决定的, 即开箱即用时的体验. 其下限也就决定了
+会不会马上卸载它.
+
+学习编辑器时可以按以下3步走:
+1. 主要精力花在快捷键和语言支持上
+2. 开始挑选自己喜欢的组件, 跟工作习惯或工作流不匹配的就想办法换掉
+3. 写自己的插件
+
 ** 简介
+VS Code的插件开发语言是JS, 是基于浏览器和js引擎的编辑器.
+VS Code将插件系统运行在主进程之外.
+
+VS Code自带TypeScript和Node.js的支持. 为了支持其他的语言, 提供了统一的API, 即Language Server
+Protocal和Code Debugging Protocol. 每种语言都能通过实现这两个API在VS Code上得到类似IDE的开发和
+调试体验.
+
 VS Code有两个不同的发布渠道: 一个是稳定版(每个月发布一个主版本), 另外一个发布渠道是Insiders,
 每周一到周五UTC时间早上6点从最新版本的代码发布一个版本.
 
@@ -8,12 +28,34 @@ Insiders版本的好处是:
    如果改动比较大, 可能会在insider版本中运行两个月才会发布到稳定版本中
 2. 可以深度参与VS Code产品的开发过程.
 
+每次打开vs code, 都会打开还原界面, 在欢迎界面中的学习部分可以进入交互式演练场.
+vs code的各个功能, 都是基于当前打开的文件或者文件夹的
+
 ** 命令面板
 可以通过F1或Cmd+Shitf+P打开.
+可以在命令面板中快速搜索命令并且只需. VS Code的绝大多数命令都可以在命令面板中搜索到.
 
-VS Code的绝大多数命令都可以在命令面板中搜索到.
+命令面板的工作原理: vs code会先处理输入框中的文本, 然后根据第一个字符来选择不同的处理方案.
+">": 表示提供所有的命令
+"@": 扫描当前文件提供所有的符号
+"@:": 将符号按照类别归类
+"#": 显示和跳转工作区中的"符号"
+":": 跳转到当前文件中的某一行
+"edt": edit的缩写, edt+空格 显示所有已打开的文件, edt active 显示当前活动组中的文件
+"ext": extension, ext+空格 可以进行插件的管理 ext install 可以在命令面板中搜索和安装插件
+"task", "debug": 分别对应任务和调试
+"term": terminal的缩写, 用于创建和管理终端
+"view": 打开vs code的各个UI组件.
+"?": 提示信息
 
-** 命令行使用
+workbench.commandPalette.history  # 记录在命令面板中执行的命令, 默认50个, 设置为0表示关闭
+workbench.commandPalette.preserveInput  # 默认为false, 设为true后, 之前输入的值还在命令面板
+的输入框中.
+
+** 命令行启动code
+windows用户将vs code的安装目录添加到系统环境变量中即可.
+
+macos上可以使用如下的方法:
 在安装vs code之后, 打开命令命令面板, 输入shell, 选择"在path中安装code", 之后重新打开一个终端,
 就可以在命令行中使用code命令了.
 
@@ -28,20 +70,483 @@ ls | code -
 vs code的各个参数可以定义vs code的运行方式, 如:
 --disable-extensions, --max-memory
 
+** 修改界面语言
+打开vs code -> F1 -> Configure Display Language -> 修改locale的值
+zh-cn  中文, en 英语
+
+* 光标操作
+** 移动
+cmd+shitf+\  # 在配的的括号之间跳转
+
+** 文本选择 - 安装emacs插件, 使用emacs的快捷方式
+** 删除操作
+Opt+<DEL>  # 删除当前单词中光标前的数据
+Cmd+<DEL>  # 删除当前行中光标前的数据, 在文件树浏览窗口中, 可以删文件和目录到垃圾桶中
+cmd+x  # 剪切整行数据, 如果有选中部分, 则只剪切选中的部分
+
+** 多光标操作
+"editor.multiCursorModifier": "alt", 可以设置该键
+
+1. 使用鼠标
+   Option+"鼠标点击", 点击多次就会创建多个光标, 此时可以通过快捷键来同时移动光标.
+   如果想要同时选中, 可以先按下ctrl+space, 然后在创建多个光标.
+2. 使用快捷键
+   option + cmd + u/n  # 向上/下创建光标
+3. 特殊命令
+   cmd+d  第一次按下的时候会选择光标附近的单词, 第二次按下时会找到这个单词第二次出现的位置, 并且
+   创建一个新的光标, 并选中.
+   
+   cmd+k cmd+d  # 跳过当前的选择.
+
+   Option+shitf+i # 选择多行代码后, 按下此键, 就会在选择区域每行的最后添加一个光标.
+
+** 文件跳转
+Ctrl+tab 继续按"Ctrl", 使用tab键来切换选择的文件, 找到之后松开即可打开文件.
+cmd+p  # 打开最近打开的文件列表, 输入文件名进行搜索, 按下enter键即可打开, cmd+enter会分屏打开
+cmd + p # 在弹出的输入框中输入":行号", 就可以跳转到当前文件的行号处, 也可以输入"文件名:行号"
+
+** 符号跳转
+cmd+shif+o  # 查看当前文件里的所有符号, 如果在"@"符号后面输入":", 则会所有的符号进行分类
+cmd+t  # 有些语言提供了在多个文件里进行符号跳转
+F12 / cmd+F12  # 跳转到定义, 跳转到实现, [[https://code.visualstudio.com/Docs/languages/javascript#_javascript-projects-jsconfigjson][js语言的jsconfig的配置]]
+shift + F12  # 显示引用
+
+** 鼠标操作
+可以在左边的行号移动鼠标进行选择, 选择之后按下Option就可以实现复制粘贴的功能.
+
+按下option键, 然后按下鼠标中键, 就可以进行矩形选择
+
+鼠标停留在某写符号上时, 会显示一些信息, 此时按下cmd可以看见实现
+
+cmd+鼠标点击  # 跳转到定义或者打开超级链接, 文件等
+
+** 命令面板操作
+转换大小写: F1->transform to upper 会将光标所在词全部转换为大写, 或者是选择部分全部转换为大写
+排序: F1->Sort Lines  # 用于对选中的每行进行排序, 很少使用
+* 代码编辑功能
 ** 快捷键
+cmd + /  # 代码注释
+ctrl + t  # 交换两个字符
+cmd+Enter  # 在当前行下新建一行
+cmd+shitf+Enter  # 在当前行上新建一行
+ctrl + j  # 合并代码
+cmd+u  # 将光标回到上一次的位置
+ctrl + -  # 可以在不同文件中回到上一次的光标位置
+cmd + +/-  # 放大或缩小字符
+cmd + .  # 快速修复
+cmd + shift + [ / ]  # 折叠、展开当前代码块
+cmd + k cmd + [ / ]  # 折叠当前代码块的所有
+cmd + k cmd + 0  # 当前编辑器里所有可以被折叠的代码全部折叠起来
+cmd + k cmd + j  # 当前编辑器里所有可以被折叠的代码全部展开
+还可以通过在代码注释里书写特殊的关键词来声明, [[https://code.visualstudio.com/docs/editor/codebasics#_folding][各个语言可以使用的关键词来控制代码的折叠]]
+如:
+#+BEGIN_SRC java
+public class Main {
+    // region Main
+    // region Main声明了一个可折叠代码块的开始
+    public static void main(String[] args) {
+    }
+    // endregion声明了可折叠代码的结束
+    // endregion
+}
+#+END_SRC
+
+cmd+shitf+space  # 显示参数预览
+F2  # 修改一个函数或者变量的名字
+
+选中一段代码, 如果出现黄色的小灯泡, 就可以点击它, 选择重构进行操作.
+
+cmd+d  # 选中某个单词, 再按一次会选中下一个同名的单词, 然后可以一起修改该值
+opt+shift+i  # 在选中的每行后边都会插入一个新的光标
+
+** 差异比较界面
+打开使用版本控制管理的目录是, 此时打开修改的文件, 就会进入差异比较界面, 该界面的右上角有一些按钮,
+功能如下:
+第一个按钮的功能是从差异编辑器跳转到一个普通的编辑器并打开该文件
+第二个按钮是否要在差异编辑器里显示代码行末的空格符的变化
+第3个,4个按钮用于在当前文件里的多个变动之间进行跳转
+"..."按钮点击后是一个下拉菜单, 下拉菜单中的第4个选项是与差异编辑器呈现方式相关的, 默认情况下
+差异编辑器采取并排的方式显示两个编辑器, 左边的编辑器显示改动前的文件内容, 右侧则是改动后的
+文件内容, 使用"切换内联视图", 将代码改动显示在同一个编辑器里.
+
+编辑器内置了版本操作管理(前提是需要添加版本控制), 当对代码进行修改后, 左边会出现有颜色的小条,
+点击这个小条就可以看到差异变化.
+
+在进行git的操作时, vs code会最终将git的界面操作转换为git命令, 可以在output的界面进行查看, 点击
+output界面的下拉框, 选择相应的选项即可.
+
+* 搜索配置
+** 快捷键
+cmd+option+c  # 用来开启关闭搜索时的大小写
+cmd+option+w  # 用来表示是否全词匹配
+cmd+option+r  # 是否启用正则表达式
+cmd+option+f  # 替换
+cmd+shitf+f  # 在多个文件中进行搜索, 默认情况下vs code会在当前打开的文件夹下进行搜索.
+在全局搜索界面中, 点击搜索框下的"..."图标, 可以填入"包含文件"和"排除文件". 这两个配置的书写格式
+都是glob.
+
+** 配置
+"editor.find.seed"
+editor.find.seedSearchStringFromSelection  # 设置搜索是自动填充关键词
+editor.find.autoFindInSelection  # 设置如果有选中文本, 则在选择文本中进行搜索
+search.collapseResults  # 用来控制是否自动展开搜索结果,默认为auto
+search.location  # 多文件搜索视图的位置, 默认初夏在侧边栏.
+editor.find.globalFindClipboard, search.globalFindClipboard  # 共享搜索记录, 该功能被打开后在
+vs中搜索关键词和搜索记录都会被共享给系统, 当打开被动支持这个功能的应用时, cmd+F就会发现同样的
+搜索关键词已经被自动填充到搜索框中了
+
+** 代码片段
+基于TextMate语法的.
+打开命令面板, 搜索"配置用户代码片段(configure user snippets)"并且执行, 然后选择需要使用的语言.
+会打开一个json文件, 
+#+BEGIN_SRC js
+{
+    "Print to console": { // key, 在该文件中必须唯一
+        "prefix": "log",  // 当在编辑器里打出跟"prefix"一样的字符时, 就能在代码中插入body中的内容
+        "body": [
+            "console.log('$1');",
+            "$2"
+        ],
+        "description": "Log output to console"  // 该属性不是必须的, 如果有可以在建议列表的快速
+        // 查看窗口里看到该段文字
+    }
+}
+#+END_SRC
+
+Tab Stop: 上述示例中的$1, $2就是Tab Stop, 即按下Tab键之后光标移动到的位置. Shitf+Tab回到上一个
+位置.
+
+除了可以填入$1这种, 还可以使用${1:label}.
+在代码片段里也可以使用多光标的特性. 如:
+{
+    "body": [
+        "console.log(${1:i});",
+        "console.log({$1:i}+1)";
+    ]
+}
+
+${1: $CLIPBOARD}  # 在代码片段的某个位置使用剪切板的内容.
+[[https://code.visualstudio.com/docs/editor/userdefinedsnippets#_variables][代码片段的其他预设值]]
+
+cmd+f  # 自动填充搜索关键词, enter键可以在多个搜索结果中搜索, shitf+enger, 反向搜索.
+
+* 快捷键
 [[https://code.visualstudio.com/shortcuts/keyboard-shortcuts-macos.pdf][快捷键汇总]]
 
-一些常用的快捷键:
-Ctrl+`  # 在终端和编辑器之间的转换
-Opt+<DEL>  # 删除一个单词
-Cmd+<DEL>  # 删除整行
+对于快捷键的学习, 可以试着找出快捷键的分类方式, 利用这一套方式来记忆快捷键.
+自定义快捷键: F1-> Open Keyboard Shortcuts, 在该界面中可以自定义快捷键. 该界面中可以根据
+按键名称进行搜索, 也可以按功能进行搜索, 还可以根据按键的顺序进行搜索(需要点击搜索框中类似键盘
+的按钮).
 
-Cmd+shitf+D  # 启动和调试
+** 界面切换
+Ctrl+`, cmd+j  # 在终端和编辑器之间的转换
 cmd+shift+p  # 命令面板
 cmd+p  # 快速打开文件
 cmd+k cmd+s  # 显示快捷键
-cmd+x  # 剪切整行数据, 如果有选中部分, 则只剪切选中的部分
-cmd+k p  # 复制当前文件的路径
 cmd+k r  # 在finder中打开文件
-cmd+d  # 选中某个单词, 再按一次会选中下一个同名的单词, 然后可以一起修改该值
-opt+shift+i  # 在选中的每行后边都会插入一个新的光标
+ctrl+r  # 打开最近操作过的文件夹记录, 此时选择某个文件夹, Cmd+enter就可以在新窗口中打开
+
+
+** 代码跳转
+ctrl + -  # 跳转回去
+
+** 调试
+Cmd+shitf+D  # 启动和调试
+
+** 其他
+cmd+k p  # 复制当前文件的路径
+
+
+** 自己绑定的快捷键
+Ctrl+u  #  当前代码上移一行
+Shitf+ctrl+u  # 当前代码向下移一行
+
+* 配置
+cmd+,  # 调出配置文件
+"explorer.autoReveal": false  # 关闭文件时, 左侧的文件树不乱跳
+explorer.confirmDelete:  # 默认打开, 删除文件时是否需要确认
+"editor.insertSpaces": true  # 将tab键换成空格键
+"editor.renderWhitespace": "none"  # 可以修改空格的渲染方式
+"editor.parameterHints.enabled"  # 设置参数预览
+"editor.quickSuggestionsDelay"  # 设置自动补全的延迟时间
+"editor.wordBasedSuggestions"  # 基于单词的自动补全
+“editor.minimap.renderCharacters"  # 设置小地图的渲染方式"
+editor.minimap.enabled  # 控制是否显示小地图
+"editor.minimap.maxColumn"  # 控制小地图里每行渲染多少个字符
+"breadcrumbs.enabled": false  # 关闭面包屑
+editor.lineNumbers  # 设置行号显示以及如何显示
+editor.renderWhitespace: all  # 让编辑器将所有的空格制表符都全部渲染出来
+editor.renderIndentGuides  # 缩进参考线
+editor.rulers:[80]  # 设置垂直标尺为80个字符
+editor.cursorBlinking, editor.cursorStyle, editor.cursorWidth  # 设置光标
+editor.renderLineHighlight: all  # 把当前代码行的背景色修改
+editor.detectIndentation  # 禁用自动检测控制制表符和空格键, 之后空格或制表符的使用则是由
+设置"editor.insertSpaces"来决定, 制表符长度由"editor.tabSize"来控制
+
+editor.formatOnSave: true  # 保存代码时格式化代码
+editor.formatOnType: true  # 在编辑代码时自动校正代码格式
+files.autoSave  # 自动保存文件, 为了避免和其它插件冲突, 可以将其设置为delay, 然后设置
+files.autoSaveDelay控制在打完字多久后保存文件
+files.defaultLanguate  # 创建新文件时识别为某种文件类型
+
+更多的设置可以通过搜索 editor来设置, 如: editor cursor, editor find, editor font, editor format
+editor suggest
+
+** 自动补全设置
+"editor.quickSuggestions": {
+    "other": true,  // 为false之后自动补全窗口永远不会弹出
+    "comments": false,  // 注释, 光标在注释里不显示提示
+    "strings": false  // 字符串, 光标在字符串里不显示提示
+}
+
+** vs code的配置文件
+vs code 的配置文件都会存放在一个子文件夹.vscode中. 包含以下几种文件
+1. 配置文件(settings.json)
+   该文件格式跟之前修改的用户设置几乎是一样的, 唯一的区别在于这个文件的设置只有在当前这个文件夹
+   在vs code中被打开时才会生效
+2. launch.json - 调试文件
+   用于说明如何调试当前文件夹下的代码
+3. task.json - 任务设置
+   vs code任务系统的配置文件
+
+** 多文件夹工作区 - multi-root workspace
+创建多工作区的方法:
+1. 在vs code中打开一个文件夹, 此时vs code处于一个单文件夹的状态.
+2. 调出命令面板, 搜索"将文件夹添加到工作区"并执行或者使用菜单, "文件"-> 将文件夹添加到工作区
+3. 调出命令面板, 搜索"将工作区另存为"(save worksapce as), 此时vs code就会创建一个文件, 后缀为
+   code-workspace
+
+生成的该文件有个特殊的后缀, 这个文件的格式也是json, 可以自行打开这个文件查看
+该文件中默认有两个键, 第一个是"folders", 里边包含了这个多文件工作区里有哪些文件夹.
+第二个是settings, 可以在这个值里添加专属这个多文件夹工作区的设置.与.vscode文件夹下的settings.json
+的作用类似.
+可选的键是: extensions和launch
+
+切换vs code的窗口: F1->switch window -> 选择需要切换的窗口
+快速切换vs code的窗口: F1->quick switch window
+
+在进行设置时, 可以选择user settings, workspace settings以及folder settings
+
+* vs code中的终端
+** 快捷键
+ctrl + `  # 创建或切换终端
+shitf+ctrl+`  #再创建一个终端, 选择对应的工作目录进行创建
+F1->focus next terminal  # 切换到下一个终端
+cmd+\  # 切分面板或终端, F1-> split terminal
+
+F1->focus next pane  # 聚焦于上一个窗格
+在终端里可以使用shell自身支持的快捷键
+
+** 终端设置
+默认情况下, win10会使用powershell, win10以下的版本会使用cmd. macos, linux会检测默认shell是什么,
+如果未找到, 就会使用bash或sh作为启动时的shell.
+可以通过terminal.integrated.shell.windows, terminal.integrated.shell.osx,
+terminal.integrated.shell.linux设置为想要使用的shell路径
+
+terminal.integrated.shellArgs.linux  # 创建bash的时候, 传入参数.
+terminal.integrated.env.osx, terminal.integrated.env.linux, terminal.integrated.env.windows
+来控制集成终端创建shell时, 使用哪些特殊的环境变量.
+
+terminal.integrated.cwd  # 控制shell启动时的初始目录
+terminal.integrated.rightClickBehavior  # 控制鼠标右键点击时的行为
+terminal.integrated.enableBell  # 控制脚本出错时是否要发出响声
+terminal.integrated.scrollback  # 设置保存最近输出的结果行数, 默认1000
+
+在集成终端中, cmd+鼠标左键 将在编辑器中打开某个文件
+
+在资源管理中, 右键某个目录->"在终端中打开"
+
+* workflow
+** 任务系统
+目的: 将各种形形色色的任务脚本尽可能的统一化, 然后提供一套简单但又定制化强的方式操作它们.
+
+vs code会对任务进行自动检测, vs code开放了类似的API接口, 允许插件实现一样的功能.
+
+** 自定义任务
+F1->"configure task" -> 选择需要的功能, 会生成一个task.json文件. 该方式创建的任务受限域vs code
+或插件所支持的脚本工具, 缺乏一定的灵活性.
+不同的任务有不同的键, 以npm项目为例:
+tasks是一个数组, 即当前文件夹下使用的所有任务.
+
+另一种创建方式是使用模板, F1->configure task->create task.json from template->出现选择使用哪种
+模板, 这取决于装了哪些插件, 默认vs code提供了几种, others是一个通用的模板.
+下面介绍一下通用模板:
+label标签: 任务的名称, 在命令面板里执行任务会需要读到它
+
+type: 对于自定义的任务来说, 有两个选择: 一种是这个任务被当做进程来运行, 一种是在shell中作为命令
+来运行, 默认是shell中运行, 会在集成终端中运行.
+将type设置为process时, 就需要在command中提供程序的地址, 如:
+#+BEGIN_SRC js
+"tasks": [
+    {
+        "label": "chrome",
+        "type": "process",
+        "command": "./a.out"
+    }
+]
+#+END_SRC
+
+可以分别为不同的系统指定不同的程序执行路径:
+#+BEGIN_SRC js
+"tasks": [
+    "command": "xxx",
+    "windows": {
+        "command": "C:\\xxxx"
+    },
+    "linux": {
+        "command": "xxxx"
+    }
+]
+#+END_SRC
+
+command: 代表希望在shell中运行哪一个命令, 或者哪一个程序. 可以将程序运行的参数全部写到command里,
+也可以放到args中. args是一个字符串数组. 如:
+#+BEGIN_SRC js
+{
+    // ...
+    "command": "echo",
+    "args": [
+        "hello world"
+    ]
+}
+
+// => 还可以写成
+{
+    "args": [
+        {
+            "value": "hello world",
+            "quoting": "escape"
+        }
+    ]
+}
+#+END_SRC
+qutoting的值决定了如何处理这段字符串. 默认使用escape转义, 还可以使用strong, 此时会用单引号包裹
+这段字符串, weak使用双引号包裹这段字符串.
+[[https://code.visualstudio.com/docs/editor/tasks#_custom-tasks][vs code关于task参数转义部分的文档]]
+
+** 运行任务
+F1->run task->选择任务->vs code会问"选择根据何种错误和警告扫描任务输出".
+
+** 分组和结果显示
+#+BEGIN_SRC json
+{
+    "version":"2.0.0",
+    "tasks":[
+        {
+            "label":"test shell",
+            "type":"shell",
+            "command":"./scripts/test.sh",
+            "windows":{
+                "command":".\scripts\test.cmd"
+            },
+            "group":"test",
+            "presentation":{
+                "reveal":"always",
+                "panel":"new"
+            },
+            "options":{
+                "cwd":"",
+                "env":{
+
+                },
+                "shell":{
+                    "executable":"bash"
+                }
+            }
+        }
+    ]
+}
+#+END_SRC
+group属性就是分组, 可以通过这个属性指定这个任务被包含在哪一种分组中. 其值有3种: build: 编译生成
+test: 测试, none. 因此在命令面板里搜索"run test task"时, 该任务就会显示出来.
+
+如果需要任务可以一键运行, 可以为其设置默认值, 即:
+#+BEGIN_SRC js
+"group": {
+    "isDefault": true,
+    "kind": "test"
+}
+#+END_SRC
+cmd+shitf+B  # 可以自动运行默认的生成任务
+
+presentation: 用于控制任务运行时, 是否需要自动调出运行界面
+options: 用于控制任务执行时候的几个配置
+
+** 结果分析
+任务运行的结果是由tasks.json里任务的一个属性"problemMatcher"来控制的, 可以选择vs code内置的,
+或者其他插件提供的结果分析器.
+
+vs code现在已自带以下几种问题分析器:
+1. $tsc, 用于分析TypeScript编译结果, $tsc-watch 用于分析运行在观察模式下的typescript编译器的结果
+2. $jshint, 用于分析jsHint的结果, $jshint-stylish 用于分析jshint stylish的运行结果
+3. $eslint-compact, $eslint-stylish 分析eslint compact和eslint stylish
+4. $go go编译器的分析器
+5. $mscompile 分析csharp和vb的编译结果
+6. $lessc 用于分析lessc的运行结果
+7. $node-sass  分析node sass编译结果
+
+[[https://marketplace.visualstudio.com/search?term=problem%2520matcher&target=VSCode&category=All%2520categories&sortBy=Relevance][插件市场上的问题分析插件]]
+
+** 自定义问题分析器
+这涉及一定的正则表达式知识.
+#+BEGIN_SRC js
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "echo",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                {
+                    "value": "index.js:5:3: warning: unused variable",
+                    "quoting": "escape"
+                }
+            ],
+            "problemMatcher": {
+                "owner": "echo",
+                "fileLocation": ["relative", "${workspaceFolder}"],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            }
+        }
+    ]
+}
+#+END_SRC
+此例中, problemMatcher是一个对象了, 该对象中定义了如何去分析任务运行的结果.
+pattern就是匹配的格式, fileLocation定义在当前文件夹下如何定位该文件
+[[https://code.visualstudio.com/docs/editor/tasks#_defining-a-multiline-problem-matcher][更强大的问题分析器]]
+
+** 多任务
+如果一个项目中有前端和后端两种代码, 希望同时运行, 此时需要先为前后端分别定义好各自的任务, 如下:
+#+BEGIN_SRC js
+{
+    "taskName": "compile",
+    "dependsOn": [
+        "frontend",
+        "backend"
+    ],
+    "group": {
+        "kind": "build",
+        "isDefault": true
+    }
+}
+#+END_SRC
+该任务有个新属性, 叫做dependsOn, 指定了该任务依赖于"frontend"和"backend"两个脚本.
+
+${workspaceFolder}  # 指定文件的相对地址
+[[https://code.visualstudio.com/docs/editor/tasks#_variable-substitution][任务系统的配置支持预定义参数]]
+
+* 调试
+** 介绍
+vs code为调试功能提供了一套统一的接口, 叫做Debug Adapter Protocal(DAP).
+
+
+* 其他编辑器
+emeditor

@@ -1,0 +1,288 @@
+* Vue
+** 简介
+渐进式JavaScript框架 - 易用, 灵活, 高效
+为了快速体验vue, 可以在一个单独的html页面中引入vue的库的CDN连接即可.
+
+** Vue CLI2.x - 脚手架
+需要先安装nodejs
+node -v  # 输出node的版本号
+npm -v  # 查看npm的版本号
+
+脚手架是通过webpack搭建的开发环境
+sudo npm install --global vue-cli # 安装
+vue --version  # 安装完成之后, 使用此方法可以查看安装的版本
+
+*** 使用
+新建一个目录并进入, 然后执行命令:
+vue init webpack <projectname>
+cd <projectname>
+npm install
+npm run dev
+
+** 项目介绍
+config目录中是一些配置信息, index.js文件中的port
+
+一个vue文件分为三部分:
+第一部分是: template, 即html代码
+#+BEGIN_SRC js
+<template>
+    <div class="xxx"></div>
+</template>
+#+END_SRC
+第二部分是: script, 即页面的逻辑部分
+#+BEGIN_SRC js
+<script>
+export default {  // 用于导出
+    name: "xx", // 目前还没有发现有什么用处
+}
+</script>
+#+END_SRC
+第三部分是: style, 即样式部分
+#+BEGIN_SRC css
+<style scoped>  // 如果不定义scoped, 则该样式会应用于全局, 可能会打乱页面效果
+</style>
+#+END_SRC
+
+** 父组件向子组件传值 - 属性传值
+将公共的数据放到App.vue中, 需要注意传递的是引用还是值.
+Array, Object等为引用, string, Number, boolean等是值
+
+如果是传值, 修改了值的内容, console中会有个报错
+
+#+BEGIN_SRC js
+<users v-bind:users="users"><users>  <!-- 父组件中的数据传递 -->
+
+// 父组件中的数据定义
+export default {
+    name: 'App',
+    components: {},
+    data: function() {
+        users:[
+            {name: "casper", position: "FullStack", show: false}
+        ]
+    }
+}
+
+// 子组件
+export default {
+    name: "users",
+    // props: ["users"],  // 写法不严谨
+    props: {  // 正规的写法
+        users: {
+            type: Array,
+            required: true,
+        }, // 后面还可以跟多个
+    }
+}
+#+END_SRC
+
+** 事件传值 - 子组件传递给父组件
+#+BEGIN_SRC js
+// 子组件
+<h1 @click="changeTitle">{{title}}</h1>
+
+export default {
+    methods: {
+        changeTitle: function() {
+            this.$emit("titleChange", "value");  // 注册一个函数, 并传入值
+        }
+    }
+}
+
+// 父组件
+// titleChange就是注册的事件, updateTitle就是需要在父组件中实现的函数, 传入的参数一定是$event
+<app-header v-bind:title="title" @titleChange="updateTitle($event)"></app-header>
+export default {
+    methods: {
+        updateTitle: function(title) {
+            this.title = title;
+        }
+    }
+}
+#+END_SRC
+
+** vue的路由
+npm install vue-router --save-dev  # 安装路由模块
+然后在main.js中启用vue-router
+#+BEGIN_SRC js
+// main.js
+import VueRouter from "vue-router"
+
+import HelloWorld from "./components/HelloWorld"
+import Home from "./components/Home"
+
+Vue.use(VueRouter)
+// 配置路由:
+const router = new VueRouter({
+  routes: [
+    {path:"/", component: Home},  // 使用导入的组件
+    {path:"/helloworld", component: HelloWorld},
+  ],
+  mode: "history",  // 去除地址栏中, vue添加的"#/"部分
+})
+
+new Vue({
+    router, // 使用定义的路由
+    el: "#app",
+    // ...
+})
+
+// App.vue
+<template>
+  <!-- 有且只能有一个根标签 -->
+  <div id="app">
+    <ul>  <!-- 导航 -->
+      <!-- a 标签会让页面重新加载, 使用router-link来代替 -->
+      <li><a href="/">Home</a></li>
+      <!-- <li><a href="/helloworld">Hello</a></li> -->
+      <li><router-link to="/helloworld">HelloWorld</router-link></li>
+    </ul>
+    <router-view></router-view> <!-- 使用 -->
+  </div>
+</template>
+#+END_SRC
+** vue请求http
+npm install vueresource --save-dev  # 安装
+
+然后在main.js中启用
+#+BEGIN_SRC js
+// main.js
+import VueResource from "vue-resource" // 使用http
+Vue.use(VueResource)
+
+// home.vue
+created() { // ES6语法
+    this.$http.get('http://jsonplaceholder.typicode.com/users').then(
+        (data) => {
+            console.log(data);
+            this.users = data.body;
+        })
+}
+#+END_SRC
+** vue跨域请求
+1. 将如下代码拷贝到config/index.js的proxyTable中
+   #+BEGIN_SRC js
+'/apis': {
+    // 测试环境
+    target: 'http://www.thenewstep.cn/',  // 接口域名, 一定要加上http
+    changeOrigin: true,  //是否跨域
+    pathRewrite: {
+        '^/apis': ''   //需要rewrite重写的, 此处的apis可以换成其的名称, 在发请求的时候
+        // 使用/apis/xxxx
+    }              
+}
+   #+END_SRC
+   注意: 修改完index.js后, 一定要重新启动一下服务
+2. 访问请求的修改
+   #+BEGIN_SRC js
+// 此处的/apis就是在proxyTable中设定的
+// 使用fetch请求
+fetch("/apis/test/testToken.php", {
+    method: "post",
+    headers: {
+        token: "f4c902c9ae5a2a9d8f84868ad064e706",
+    },
+    body: JSON.stringify({
+        username: "capser",
+        password: "123456",
+    }) })
+    .then(result => {
+        return result.json();
+    })
+    .then(data => {
+        console.log(data);
+    })
+
+// 使用axios, 需要安装: npm install axios --save-dev
+// 或者cnpm install axios
+// 然后需要在main.js中引入axios
+// 如果需要设置headers信息, 如下:
+// axios.defaults.headers.common["token"] = "f4c902c9ae5a2a9d8f84868ad064e706"
+// 还可以单独设置post, get等的头信息
+// axios.defaults.headers.post["Content-type"] = "application/json"
+/*
+// main.js
+import axios from 'axios'
+Vue.prototype.$axios = axios // 能够全局使用
+然后就可以在需要请求的地方进行使用了
+*/
+created() {
+// 使用axios请求
+    this.$axios.post("/apis/test/testToken.php", {
+      username: "casper",
+      password: "13",
+    })
+    .then(data => {
+      console.log(data);
+    })
+}
+   #+END_SRC
+
+
+** 升级vue到3.x
+sudo npm install -g @vue/cli
+vue create <projectname>
+cd <projectname> && npm run serve
+
+** vue3定义自己的脚手架模板
+vue create <projectname>  # 会出现选择的选项, 选择"Manually select featcures", 选择需要的组件
+创建完成后, 可以在HOME目录下的 .vuerc文件中看到信息. 下一次创建时会从该文件中读取信息,
+如果不想让其出现在列表里, 可以删除该文件中的内容, 只留下"{}"
+
+** vue3创建环境变量
+在项目的根目录添加新文件".env",
+里边的内容是: VUE_APP_xxx
+获取: process.env.VUE_APP_xxx
+
+每次新建或删除文件, 需要重新启动一下服务.
+
+新建.env.development文件, 创建开发环境变量.
+
+** vue3添加插件
+vue3中仍然是可以使用npm install xx来安装的
+
+vue add <pluginname>
+
+注意: 如果对当前项目的改变比较大, 如安装一些UI库, 最好是使用vue add命令
+
+** vue3可以单独运行vue文件
+先执行命令 vue serve xx.vue, 然后根据提示进行安装即可
+
+# yarn global add @vue/cli-service-global
+# npm install -g @vue/cli-service-global
+vue serve xx.vue  # 之后就可以运行为一个服务
+
+** vue3中的ui
+vue ui  # 使用web图形界面创建项目
+
+** vue3配置文件
+新建一个文件: vue.config.js
+
+#+BEGIN_SRC js
+module.exports = {
+    baseUrl: '/', // 根路径
+    //outputDir: 'casperbuild' // 构建输出目录
+    assetsDir: 'assets', //静态资源目录(js, css, img, fonts)
+    lintOnSave: false, // 是否开启eslint保存检测, 有效值: true, false, error
+    devServer: {
+        open: false,  // 项目构建成功后, 是否自动在浏览器中打开
+        host: "0.0.0.0",
+        port: 12345,
+        https: false,
+        hotOnly: false, // 热更新
+        proxy: { //配置跨域
+            '/api': {
+                target: "http://localhost:5000/api",
+                ws: true,
+                changeOrigin: true,
+                pathRewrite: {
+                    '^/api': ''
+                }
+            }
+        }
+    }
+};
+#+END_SRC
+
+* 视频学习
+vue小白(done) -> vue深入浅出(done) -> vue在线翻译(done) -> vue用户管理系统(收费) -> vuex(收费)

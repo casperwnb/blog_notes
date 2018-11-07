@@ -22,7 +22,8 @@ HTML代码是顺序执行的, 一份无任何css样式的html代码最终呈现�
 ** 盒模型
 [[file:~/Learn_space/blog_notes/web/images/cssbox_model.png][css盒模型示意图]]
 
-盒模型由4部分组成, 从内到外分别是content -> padding -> border -> margin
+盒模型由4部分组成, 从内到外分别是content -> padding -> border -> margin; 从外到内简介为mbpc.
+macbook + pc.
 
 按理说一个元素的宽度(高度类似)的计算如下:
 总宽度 = margin-left + border-left + padding-left + width + \
@@ -240,5 +241,157 @@ h1 {
     color: #fff;
     mix-blend-mode: difference;
   }
+}
+#+END_SRC
+
+* display
+[[http://zh.learnlayout.com/][学习css布局]]
+
+** 简介
+用于控制布局的属性, 每个元素都有一个默认的display值, 这与元素的类型有关, 大多数元素的默认值是
+block或者inline. block通常被叫做块级元素, inline通常被叫做行内元素.
+
+一个块级元素会新开始一行并且尽可能撑满容器. 其他块级元素包括p, form, header, footer, section等
+一个行内元素可以在段落中包裹一些文字而不会打乱段落的布局.
+
+display: none, 不会占据它本来应该显示的空间, 设置为visibility: hidden 就会占据空间.
+
+可以将特定语义的元素改成行内元素. 如: li改成inline, 制作成水平菜单.
+
+设置块级元素的width可以防止它从左到右撑满整个容器, 然后设置左右外边距为auto, 让其水平居中. 元素
+会占据所指定的宽度, 剩余的宽度会一分为二成左右外边距. 当浏览器窗口比元素的宽度还要窄时,
+浏览器会显示一个水平滚动条来容纳页面. 此时可以使用max-width代替width.
+
+** position
+#+BEGIN_SRC css
+/*
+static是默认值, 不会被特殊定位, 
+*/
+.static {
+    position: static;
+}
+
+/*
+relative表现和static一样, 除非添加了其他属性
+*/
+.relative1 {
+    position: relative;
+}
+
+/*
+位置相对于源文档流中的位置进行定位
+*/
+.relative2 {
+    position: relative;
+    top: -20px;
+    left: 20px;
+    background-color: white;
+    width: 500px;
+}
+
+/*
+固定元素会相对于视窗来定位. 即便页面滚动, 还是会停留在相同的位置.
+固定元素会脱离文档流, 移动浏览器对fixed的支持很差, 解决方案见链接:
+http://bradfrostweb.com/blog/mobile/fixed-position/
+*/
+.fixed {
+    position: fixed;
+    bottom: 0px;
+    right: 0px;
+}
+
+/*
+absolute与fixed类似, 只是是相对于最近的"positioned"祖先元素.
+*/
+.absolute {
+    position: absolute;
+    top: 120px;
+    right: 0;
+}
+#+END_SRC
+
+#+BEGIN_SRC html
+<div class="relative1">
+    <div class="absolute">ABSOLUTE POSITION</div> <!-- 此时相对于其父div进行定位 -->
+</div>
+
+<body>
+    <div class="relative1">RELATIVE1</div>
+    <div class="absolute">ABSOLUTE</div>  <!-- 此时就会相对于body进行定位 -->
+</body>
+
+<div class="relative1">Body</div>
+<div class="relative1">R
+    <div class="absolute">XXX</div>  <!-- 相对于R进行定位 -->
+</div>
+#+END_SRC
+** float
+float可用于实现文字环绕图片.
+#+BEGIN_SRC css
+img {
+    float: right;
+    margin: 0 0 1em 1em;
+}
+#+END_SRC
+
+clear属性用于控制浮动
+#+BEGIN_SRC css
+.box {
+    float: left;
+}
+
+.after-box {
+    clear: left;  /*清除left的浮动, 还可以使用right, both*/
+}
+
+/*如果浮动元素的高比包含它的元素高, 解决方法如下*/
+.clearfix {
+    overflow: auto;
+    zoom: 1;  /*IE6*/
+}
+#+END_SRC
+[[https://stackoverflow.com/questions/211383/what-methods-of-clearfix-can-i-use][清除浮动]]
+
+** 媒体查询
+#+BEGIN_SRC css
+@media screen and (min-width:600px) {
+    nav {
+    }
+}
+
+@media screen and (max-width:599px) {
+    nav li {
+        display: inline;
+    }
+}
+#+END_SRC
+使用meta viewport可以让布局在移动浏览器上显示更友好.
+
+** flexbox
+[[https://css-tricks.com/old-flexbox-and-new-flexbox/][flexbox]], [[https://bocoup.com/blog/dive-into-flexbox][flexbox最新标准]]
+flexbox布局模式被用来重新定义CSS中的布局方式, 
+#+BEGIN_SRC css
+.container {
+  display: -webkit-flex;
+  display: flex;
+}
+.initial {
+  -webkit-flex: initial;
+          flex: initial;
+  width: 200px;
+  min-width: 100px;
+}
+.none {
+  -webkit-flex: none;
+          flex: none;
+  width: 200px;
+}
+.flex1 {
+  -webkit-flex: 1;
+          flex: 1;
+}
+.flex2 {
+  -webkit-flex: 2;
+          flex: 2;
 }
 #+END_SRC

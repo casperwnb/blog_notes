@@ -458,6 +458,9 @@ def GetContent(msg, indent=0):
 [[file:codesnippet/basecode.py][Python基础代码]]
 
 * Python高效算法读书笔记
+* 问题
+** 使用seleium生成的截图不清楚
+原因是生成的图片太小了, 在高清屏幕上显示就比较模糊.
 
 * Python 项目实战
 * 实现页面消息推送

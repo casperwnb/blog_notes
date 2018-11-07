@@ -235,3 +235,49 @@ class QYWXCmdBack(tornado.web.RequestHandler):
 
 * 企业微信接口
 http://open.weixin.qq.com/connect/oauth2/authorize?appid=$CORPID$&redirect_uri=http://qy.aibaodata.com/homeback&response_type=code&scope=snsapi_userinfo&agentid=$AGENTID$&state=1#wechat_redirect
+* 微信接口
+** 发送模板消息
+[[https://developers.weixin.qq.com/miniprogram/dev/api/open-api/template-message/sendTemplateMessage.html][微信官方接口]]
+
+form_id是必须的.
+表单提交场景下, 为 submit 事件带上的 formId;
+支付场景下, 为本次支付的 prepay_id.
+
+form_id的获取: <form>表单中需要添加report-submit="true", 关键代码如下:
+#+BEGIN_SRC html
+<form bindsubmit="formSubmit" bindreset="formReset" report-submit="true">
+</form>
+
+// js
+Page({
+  formSubmit: function (e) {
+    console.log('all data:', e.detail);
+    console.log("formid:", e.detail.formId);
+  },
+
+  formReset: function () {
+    console.log('form发生了reset事件')
+  }
+})
+#+END_SRC
+注意: 提交一个表单, 产生一个formid, 该formid的有效时间为7天, 并且只能使用1次.
+在测试的时候需要使用手机, 不能使用模拟器
+
+** 上传资源到微信服务器
+#+BEGIN_SRC python
+import requests
+
+# 获取access_token
+url = 'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}'.format(WXAppID, WXAppSecret)
+r = requests.get(url)
+data = r.json()
+access_token = data["access_token"]
+
+upimgurl = 'https://api.weixin.qq.com/cgi-bin/media/upload?access_token={}&type=image'.format(access_token)
+
+files = {"casperfile": open('ori.png', "rb")}
+r = requests.post(upimgurl, files=files)
+data = r.json()
+print('return data:{}'.format(data))
+print("media_id:{}".format(data["media_id"]))
+#+END_SRC
