@@ -57,3 +57,105 @@ https://codeincomplete.com/posts/javascript-racer-v1-straight/
 
 ** pygame
 pygame是python封装的游戏库, 可以很方便的利用pygame进行2D游戏的编写. 其背后调用的就是SDL的接口.
+
+* 窗体
+** 介绍
+常规意义上的windows窗体由下列几个部分组成. 标题栏 -> 菜单栏 -> 工具栏 -> 工作区域 -> 状态栏 ->
+滚动条 -> 窗体缩放按钮
+
+** windows窗体的结构体说明
+#+BEGIN_SRC c
+typedef struct tagWNDCLASSEX {
+  UINT      cbSize; // 结构体大小，等于 sizeof(WNDCLASSEX)
+  UINT      style;  // 窗体的风格
+  WNDPROC   lpfnWndProc; // 窗体函数指针
+  int       cbClsExtra;  // 附加在窗体类后的字节数，初始化是零
+  // 附加在窗体实例化的附加字节数,系统初始化是零.如果一个应用程序使用 WNDCLASSEX 注册一个
+  // 通过在资源中使用 CLASS 指令建立的对话框时,必须把这个成员设成 DLGWINDOWEXTRA.
+  int       cbWndExtra;
+  HINSTANCE hInstance; // 该对象的实例句柄
+  HICON     hIcon;     // 该对象的图标句柄
+  HCURSOR   hCursor;   // 该对象的光标句柄
+  HBRUSH    hbrBackground; // 该对象的背景刷子
+  LPCTSTR   lpszMenuName;  // 菜单指针
+  LPCTSTR   lpszClassName;  // 类名指针
+  // 与窗体关联的小图标,如果这个值为 NULL,那么就把 hIcon 转换为大小比较合适的小图标
+  HICON     hIconSm;
+} WNDCLASSEX, *PWNDCLASSEX;
+#+END_SRC
+
+
+* 游戏的基本知识
+** 循环
+游戏所有的内容都是在一个循环内完成的, 包括绘图、线程、操作、刷新等. 都在一个大循环中完成.
+可以想象为一个循环完成一个大的绘制过程, 第二个循环刷新前一次绘制的过程, 最终类似电影一样完成
+整个动画的绘制以及不间断的操作.
+
+在编写2D游戏时, 要想象游戏的每一帧就像电影的每一帧, 每一帧做的事情如果下一帧不去做, 那么永远
+不会更新屏幕内容.
+
+pygame中先绘制的图像先出来, 后绘制的图像后出来, 后绘制的图像一定会遮挡前面绘制的图案.
+因此在一些2D引擎中, 会有一个Z值的概念, Z值就是在(X, Y)的基本2D位置上, 加一个高度的概念, 这个高度
+是一个伪概念, 它模仿3D的Z值, 只是作遮挡用. pygame中并没有Z值的概念.
+
+在正式的游戏开发中, 需要将人物的控制、NPC的控制等放在不同的线程中去做, 地图则是直接载入地图数据
+文件. 在地图的数据文件中会告诉你哪些坐标是有物件挡住的, 不能走, 哪些坐标有哪些物件.
+
+** 图形和图像的区别
+图像: 由数据组成的任意像素点的描述对象. 如照片. 图像的显示是按照像素点进行显示的. 对图像进行修改
+非常困难, 软件需要用一些特殊的算法来计算图像的色块、区域、描边等.
+
+图形:是图像的一种抽象表现形式,显示过程有一定的顺序,如从左到右.对于图形的编辑、修改更为方便简单.
+
+** 精灵 - sprite
+多用于游戏中的人物和可移动物品, 也可以用于显示鼠标指针和输入的文字. 如果屏幕上的可移动物体的尺寸
+比一个精灵图要大, 可由若干个精灵图缩放或拼接而成.
+
+从编程角度讲, 精灵是一种管理器.
+
+# transform.flip() 翻转函数, 第二个参数表示是否水平翻转, 第3个参数表示是否垂直翻转
+shipflip = pygame.transform.flip(ship, True, False)
+
+# transform.scale() 缩放函数, 第二个参数是缩放后的大小, 第三个参数不常用, 指目标对象
+shipscale = pygame.transform.scale(ship, (30, 29))
+
+# transform.rotate() 旋转函数, 第二个参数就是需要旋转的角度, 正负都可以
+shiprotate = pygame.transform.rotate(ship, 20)
+
+# rotozoom 缩放和旋转
+# chop 剪切函数, 传入一个绘制对象一个矩形, 就可以将输入的矩形内容剪切出来
+# 对于精灵的所有缩放或者变换函数都在pygame.transform中
+
+sprite模块提供了Sprite类, 该类最方便的功能就是将某些序列帧的图片做成动画, 并且保存在Sprite的组里
+
+** 碰撞检测以及淡入淡出 - 15讲
+pygame中不存在"画面淡入淡出"的函数, 需要自己去实现这样的功能.
+1. 需要对图片进行alpha混合处理, 可以理解成半透明.
+   alpha混合就是将一部分被遮盖的图像进行半透明处理, 在游戏引擎或者库中, 图像的alpha值是可以被修改
+   的, 每动态修改一次alpha值, 就会让图像更透明或者更不透明.
+
+   一般来讲,底层图行接口的颜色为32位,包含RGB以及A(alpha),RGB各8位, alpha也是8位. 合起来就是32位
+   的颜色值. 如果不存在A通道, 那么就是24位的颜色值, 每个颜色值都有256个级别的值.
+   
+   支持alpha通道的图片格式有png, tiff等. 如果不带alpha透明通道的图, 也可以在程序中设置它的alpha
+   值来做透明.
+
+   在没有背景图片载入的时候, 做淡入淡出效果, 就不是使用alpha通道了, 而是需要用fill函数来填充背景
+   #+BEGIN_SRC python
+# 载入图片不使用convert_alpha, 原因是convert_alpha会处理alpha值, 之后在处理就没有任何作用了.
+pln = pygame.image.load(plane).convert()
+a = 0
+while 1:
+    pln.set_alpha(a)
+    screen.blit(pln, (20, 150))
+    if a > 255:
+        a = 0
+    screen.fill((a, a, a))
+    a += 1
+   #+END_SRC
+
+* HTML5游戏引擎
+Construct 2:  收费的引擎
+白鹭引擎: 国内自己研发的HTML5引擎
+cocos2d-js
+laya

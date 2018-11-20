@@ -1,0 +1,100 @@
+* Redis操作
+** 使用python
+#+BEGIN_SRC python
+# encoding: utf-8
+
+import redis
+
+'''
+此种连接方式是连接一次就断开, 耗资源, 默认端口是6379
+'''
+r = redis.Redis(host="127.0.0.1", port=16379, password="")
+r.set('name', 'root')
+
+'''
+连接池: 
+当程序创建数据源实例时, 系统会一次性创建多个数据库连接,并把这些数据库连接保存在连接池中.
+当程序需要进行数据库访问时,无需重新新建数据库连接,而是从连接池中取出一个空闲的数据库连接
+'''
+# 创建一个连接池
+pool = redis.ConnectionPool(host="127.0.0.1", port=16379, password='')
+r = redis.Redis(connection_pool=pool)
+
+# getrange是开始到结束的闭区间
+print(r.getrange("foo", 0, 2).decode("utf-8"))
+
+# 使用管道
+pipe = r.pipeline(transaction=True)
+pipe.set("name", "casper")
+pipe.set('role', "IT")
+pipe.execute()
+#+END_SRC
+** redis的发布与订阅
+#+BEGIN_SRC python
+import redis
+
+class RedisHelper(object):
+    def __init__(self, rhost="127.0.0.1", rport=16379, rpwd="", chan=""):
+        self.conn = redis.Redis(host=rhost, port=rport, password=rpwd)
+        self.chan = chan
+
+    def public(self, msg):
+        self.conn.publish(self.chan, msg)
+        return True
+
+    def subscribe(self):
+        sub = self.conn.pubsub()
+        # 有多少个chan, 就需要执行多少次
+        if isinstance(self.chan, list):
+            for i in range(len(self.chan)):
+                sub.subscribe(self.chan[i])
+                submsg = sub.parse_response()
+                # 第一次调用该方法时返回["subscribe", "<channame>"], 1]
+                # 之后获取消息时也是使用parse_response方法
+                print("inner:", submsg)
+        else:
+            sub.subscribe(self.chan)
+            submsg = sub.parse_response()
+            print("innser: ", submsg)
+        return sub
+
+    def psubscribe(self, chan):
+        sub = self.conn.pubsub()
+        if isinstance(chan, list):
+            for i in range(len(chan)):
+                sub.psubscribe(chan[i])
+                submsg = sub.parse_response()
+                print("pinner: ", submsg)
+        else:
+            sub.psubscribe(chan)
+            submsg = sub.parse_response()
+            print("pinner: ", submsg)
+        return sub
+
+    def unsubscribe(self, sub):
+        sub.unsubscribe()
+        return True
+
+    def punsubscribe(self, sub, chan):
+        sub.punsubscribe(chan)
+        return True
+
+obj = RedisHelper(chan=["first", "second"])  # 可订阅多个频道
+obj.public("Hello")  # 发送消息, 但本客户端无法收到消息
+pub = obj.subscribe()  # 订阅消息
+
+pub = obj.psubscribe(["my-*", "c.b"])  # 订阅类似my-a, my-b, my-abc, c.b等频道
+while True:
+    msg = pub.parse_response()
+    print(msg)
+    pub.punsubscribe("c.b")
+
+## 同while循环, 只是输出的消息格式不同
+for msg in pub.listen():
+    print(msg)
+#+END_SRC
+
+redis无法对消息持久化, 一旦消息被发送, 如果没有订阅者接受, 则消息就会丢失.即:
+先发消息, 后订阅的客户端无法收到先发送的消息. redis也未提供消息传输保障.
+* 消息队列
+https://www.cnblogs.com/xuyatao/p/6864109.html

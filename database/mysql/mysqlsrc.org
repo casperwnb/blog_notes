@@ -1,0 +1,83 @@
+* 搭建编译开发环境
+1. 下载源码
+   可以下载带有boostheaders的版本
+2. 安装依赖工具
+   apt install make bison g++ build-essential libncurses5-dev cmake lrzsz
+3. 建立目录
+   mkdir /root/mysql/{data,log,conf}
+4. 编译
+   cmake -DCMAKE_INSTALL_PREFIX=/root/mysql -DSYSCONFDIR=/root/mysql/conf \
+   -DMYSQL_UNIX_ADDR=/root/mysql/log/mysql.sock -DDEFAULT_CHARSET=utf8 \
+   -DDEFAULT_COLLATION=utf8_general_ci -DEXTRA_CHARSETS=all \
+   -DWITH_MYISAM_STORAGE_ENGINE=1 -DWITH_INNOBASE_STORAGE_ENGINE=1 \
+   -DWITH_MEMORY_STORAGE_ENGINE=1 -DWITH_READLINE=1 -DENABLED_LOCAL_INFILE=1 \
+   -DMYSQL_DATADIR=/root/mysql/data -DMYSQL_USER=root -DWITH_DEBUG=1 \
+   -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/root/mysql/boostsrc
+5. make -j2 && make install
+6. 初始化数据库
+   ./bin/mysqld --initialize --user=root --datadir=/root/mysql/data\
+   --basedir=/root/mysql --socket=/root/mysql/log/mysql.sock
+   一旦初始化错误, 要删掉mysql/data文件夹的内容
+   
+   会生成一个临时密码, 记录下来: root@localhost: Os<D=lc5pl97
+7. 设置my.cnf文件
+   #+BEGIN_SRC text
+[mysqld]
+port = 3306
+socket = /tmp/mysql.sock
+skip-external-locking
+key_buffer_size = 16K
+pid-file=/root/mysql/log/mysqld.pid
+
+[mysqld_safe]
+log-error=/root/mysql/log/mysqld.log
+pid-file=/root/mysql/log/mysqld_safe.pid
+   #+END_SRC
+8. 手动启动mysqld服务
+   ./bin/mysqld_safe --user=root
+9. 重置密码
+   ALTER USER 'root'@'localhost' IDENTIFIED BY 'MyNewPass';
+10. 杀死mysql的进程
+    ps -ef | grep 'basedir' | grep -v "grep" | awk '{print $2, $3}' | xargs  kill -9
+
+* 使用DBUG包跟踪mysql源码
+** 介绍
+mysql服务器及其大部分客户端都是与dbug包一起编译的. 在完成mysqld调试配置的前提下, 弃用dbug包会生成
+一个跟踪文件, 其内容为mysqld执行过程.
+
+mysqld可以通过以下两种方式启用dbug包.
+1. 在mysqld启动时, 设置--debug选项
+2. 在mysqld运行时, 修改debug参数
+
+** 启动时设置--debug选项
+--debug[=debug_options]
+debug_options使用分号分割每个字段. 每个字段是由固定的标志符组成, 标志符前可以添加"+-", 后面可以
+添加以逗号分隔的修饰符列表.
+
+如果使用-#选项或者直接使用--debug选项, debug_options的默认值是: d:t:i:o,/tmp/mysqld.trace
+
+** 运行时修改debug参数
+show variables like 'debug';   # 查看debug参数值
+select @@debug;
+
+** DBUG包标志说明
+| 标志 | 说明                                                                          |
+| d    | 输出DBUG_XX调试宏, 可以添加宏关键字到修饰符列表, 空修饰符列表则输出所有调试宏 |
+|      | mysql中, 常用的调试宏有: enter exit error warning info loop                   |
+|------+-------------------------------------------------------------------------------|
+| D    | 延迟每一行的跟踪输出, 参数表示1/10秒, 如D,20表示延迟2秒                       |
+| f    | 仅调试、跟踪、分析修饰符列表中的函数, 空修饰符表示跟踪所有函数                |
+| F    | 识别每一行跟踪输出的源码文件                                                  |
+| i    | 识别每一行跟踪输出的进程ID或线程ID                                            |
+| L    | 识别每一行跟踪输出的源码文件行号                                              |
+| n    | 打印每一行跟踪输出的当前函数的嵌套深度                                        |
+| N    | 为每一行跟踪输出编号                                                          |
+| o    | 重定向输出到执行文件                                                          |
+| O    | 类似o, 但文件每次在写入之前都会被刷新                                         |
+| p    | 限制调试器只对指定进程生效, 该进程必须使用DBUG_PROCESS宏标识                  |
+| P    | 打印每一行跟踪输出的当前进程名                                                |
+| r    | 当推出一个新的状态时, 不继承前一个状态的函数嵌套基本                          |
+| S    |                                                                               |
+| t    |                                                                               |
+** 运行命令
+mysqld --debug --console

@@ -41,3 +41,215 @@
     "MIMode": "lldb"
 },
 #+END_SRC
+* 编译Nginx
+** nginx源码目录说明
+auto目录, conf目录中存放了示例文件. configure是一个脚本文件, 用于生成中间文件
+contrib: 提供了perl脚本和vim对nginx config语法支持的配置文件, 将该vim目录下的内容拷贝vim的配置
+路径中即可.
+html: 提供了两个标准的html文件
+man: 提供了linux对man文件的支持, 如: cd man && man ./nginx.8
+src: nginx的源代码
+
+** 编译nginx
+1. 依赖安装
+   apt install zlib1g-dev libpcre3 libpcre3-dev
+2. 生成中间文件
+   ./configure --help | less  # 查看编译参数, --with-xx的编译选项默认是不编译到nginx的,
+   --without-xx默认是编译到nginx中的
+
+   ./configure --prefix=<PATH>
+
+   生成的中间文件会放到nginx目录中的objs目录下, 可以通过查看objs/ngx_modules.c文件可以看到添加的
+   模块
+3. make - 编译
+   编译成功后, 生成的文件也在objs目录中, 库文件在objs/src目录下.
+4. make install - 安装
+   第一个安装的时候可以使用make install, 之后如果需要升级, 则需要手动方式.
+
+* Nginx - 使用
+** 配置语法
+配置文件由指令与指令块构成, 每条指令以";"结尾. 指令与参数之间以空格符号分割.
+指令块以"{}"将多条指令组织在一起, include语句允许组合多个配置文件.
+"#"表示注释, "$"表示使用变量, 部分指令的参数支持正则表达式.
+
+** nginx命令行
+-? -h  # 帮助
+-c  # 指定配置文件
+-g  # 指定配置指令
+-p  # 指定运行目录
+-s  # 发送信号, 如 stop, quit(优雅的停止服务), reload(重载配置文件), reopen(重新开始记录日志文件)
+-t -T  # 测试配置文件是否有语法错误
+-v -V  # 打印nginx的版本信息, 编译信息等
+
+** 热部署
+1. 进入nginx的二进制目录中, 备份旧的nginx文件
+2. 将新编译的nginx二进制文件拷贝到该目录中
+3. kill -USR2 <oldmaster-pid>  # 向旧nginx的master进程发送一个信号, 此时会启动一个新的进程, 使用
+   新的nginx程序. 新的master进程是旧的master进程的子进程.
+4. kill -WINCH <oldmaster-pid>  # 向旧nginx的master进程发送一个信号, 关闭旧的worker进程
+   此时旧的master进程并不会退出, 如果新的master有问题, 此时还可以通过旧的进程将旧worker进程重新
+   载入.
+5. 如果新版本的nginx没有问题, 就可kill -15 <oldmaster-pid>
+6. 回滚
+   向老master发送HUP信号, 向新master发送quit信号
+
+** nginx的优雅关闭
+优雅的关闭nginx是针对worker进程的, 因为只有worker进程才会处理请求. 优雅的处理是指worker进程
+可以识别出当前的连接没有正在处理请求, 此时就关闭该连接.
+
+对于有些请求nginx是无法做到优雅的:
+如当nginx代理web socket协议时, web socket后面通信的帧里nginx是不解析的, 所以此时是不知道
+nginx做TCP层,UDP层反向代理时, 也无法识别一个请求需要经过多少报文才算结束.
+
+对HTTP请求, 是可以做到优雅退出的.
+
+优雅关闭的流程:
+1. 设置定时器 worker_shutdown_timeout
+2. 关闭监听句柄
+3. 关闭空闲连接
+4. 在循环中等待全部连接关闭, 当超过worker_shutdown_timeout时, 连接会强制关闭
+5. 退出进程
+
+** 日志切换
+1. mv access.log access.bak.log
+2. ./sbin/ngxin -s reopen
+
+可以将以上的命令写入脚本中, 让crontab来定时执行, rotate.sh
+#+BEGIN_SRC bash
+LOGS_PATH=/usr/nginx/logs/history
+CUR_LOGS_PATH=/usr/nginx/logs
+YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
+
+# 需要备份的文件
+mv ${CUR_LOGS_PATH}/access.log ${LOGS_PATH}/access_${YESTERDAY}.log
+
+## 向nginx主进程发送USR1信号, USR1信号是重新打开日志文件
+kill -USR1 $(cat /usr/nginx/logs/nginx.pid)  # nginx.pid记录了nginx的pid
+# 等价于 /usr/nginx/sbin/nginx -s reopen
+
+#+END_SRC
+
+** 部署静态文件
+#+BEGIN_SRC conf
+http {
+    # 配置gzip压缩
+    gzip on;
+    gzip_min_length 1;
+    gzip_comp_level 2;
+    gzip_types text/plain application/x-javascript text/css application/xml text/javascript \
+    application/x-httpd-php image/jpeg image/gif image/png;
+    
+    # 定义日志格式, 格式名称为main, 后面的就可以使用该main
+    log_format main '$remote_addr - $remote_user [$time_local]';
+
+    server {
+        listen 80;
+        server_name www.casper.com;
+    
+        access_log logs/casper.access.log main;
+    
+        location / {
+            alias <path>/;
+            autoindex on;  # 显示目录结构
+            set $limit_rate 1k;  # 限制访问速度, 每秒传输1k.
+        }
+    }
+}
+#+END_SRC
+** 反向代理
+#+BEGIN_SRC conf
+# 内部的nginx服务器配置
+server {
+    listen 127.0.0.1:8080;  # 只允许本地进行访问
+
+    # ...
+}
+
+# 边缘节点nginx的服务配置
+http {
+
+    # 配置proxy的路径
+    proxy_cache_path  /tmp/nginxcache levels=1:2 keys_zone=my_cache:10m max_size=10g \
+    inactive=60m use_temp_path=off;
+
+    upstream local {
+        server 127.0.0.1:8080;
+    }
+
+    server {
+        server_name www.casper.com;
+        listen 80;
+        
+        location / {
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+            # 使用proxy的缓存配置
+            proxy_cache mycache;
+            proxy_cache_key $host$uri$is_args$args;
+            proxy_cache_valid 200 304 302 1d; # 对于拿些响应不返回
+
+            proxy_pass http://local;
+        }
+    }
+}
+
+#+END_SRC
+** goaccess日志监控
+1. 编译安装goaccess
+2. 运行goaccess
+   goaccess <access_path> -o <genhtml_path> --real-time-html --time-format="%H:%M:%S" \
+   --date-format="%d/%b%Y" --log-format=COMBINED
+   
+   可以通过log-format指定特定的日志格式
+   goaccess会启动一个端口7890
+
+** SSL安全协议
+hsts主要应用在浏览器端, 强制浏览器使用https方式, nginx端只需在返回的http头部添加
+Strict-Transport-Security, 告诉浏览器该站点只能通过https访问.
+
+对称加密与非对称加密
+
+PKI公钥基础设施: [[file:images/PKIKey.png][如图]]
+
+证书类型:
+域名验证证书(domain validated, DV)
+组织验证证书(organization validated, OV)
+扩展验证证书(extended validated, EV)
+
+证书链
+
+** 使用免费证书实现一个HTTPS站点
+0. 软件安装
+   打开官网, https://certbot.eff.org/, 选择对应的软件和系统, 根据生成的install来安装
+   sudo apt-get update
+   sudo apt-get install software-properties-common
+   sudo add-apt-repository ppa:certbot/certbot
+   sudo apt-get update
+   sudo apt-get install python-certbot-nginx 
+
+   # 如果无法安装, 可以再执行如下的语句后, 再安装
+   add-apt-repository universe
+   
+   nginx编译的时候应该加上--with-http_ssl_module
+
+1. 执行命令
+   certbot --nginx --nginx-server-root=<nginx_cnf_path> -d <domain_name>
+2. 执行成功后, 会在nginx.conf文件中添加如下的几行内容:
+   #+BEGIN_SRC text
+listen 443 ssl;
+ssl_certificate /etc/letsencrypt/live/<domain>/fullchanin.pem;
+ssl_certificate_key /etc/letsencrypt/live/<domain>/privkey.pem;
+include /etc/letsencrypt/options-ssl-nginx.conf;
+ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+   #+END_SRC
+   
+
+* Openresty - 使用
+** 编译安装
+源码目录解说:
+bundle目录是源nginx及其其他代码包的存放路径.
+
+./configure --prefix=xx && make && make install
+

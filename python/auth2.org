@@ -1,0 +1,6 @@
+* Auth2
+** 登录流程
+1. 生成跳转链接
+2. auth服务器会带上code跳转回自己的服务器
+3. 服务器通过code获取access_token
+4. 获取到access_token之后, 使用该access_token获取服务器的资源信息

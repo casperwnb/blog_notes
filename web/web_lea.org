@@ -1,2 +1,32 @@
 * web页面数据展示图
 ** echarts
+* 在web页面展示二维码
+** 将输入的文本展示为二维码
+引用一个第三方的js库, 然后直接将其显示在某处即可
+#+BEGIN_SRC html
+<body>
+    <div id="qrcode"></div>
+    <script src="{{static_url('js/jquery-3.3.1.min.js')}}"></script>
+    <script src="https://cdn.bootcss.com/jquery.qrcode/1.0/jquery.qrcode.min.js"></script>
+    <script>
+        $("#qrcode").html('').qrcode(
+            {
+                width: 114,
+                height: 114,
+                text:  'http://www.baidu.com',
+            });
+    </script>
+</body>
+#+END_SRC
+
+* URL中的#
+"#xxx"代表网页中的一个位置, 其右面xxx就是该位置的标识符. 浏览器读取该URL后会自动将xxx代表的位置
+滚动至可视区域. 为网页指定标识符有两个方法: 1是使用锚点, 如<a name="print"></a>.
+2是使用id属性, 如<div id="print"></div>
+
+HTTP的请求中不能包括"#", "#"是用来指导浏览器动作的, 对服务器端无用, 因此HTTP请求中不包括"#".
+如访问URL: http://www.example/index#print, 浏览器实际发出的请求是:
+GET /index
+Host: www.example.com
+
+

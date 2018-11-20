@@ -456,6 +456,7 @@ def GetContent(msg, indent=0):
 * Python codesnippet
 [[file:codesnippet/readexcel.py][excel读取]]
 [[file:codesnippet/basecode.py][Python基础代码]]
+[[file:codesnippet/compresspic.py][图片压缩]]
 
 * Python高效算法读书笔记
 * 问题
@@ -520,3 +521,78 @@ url(r'^eventsource/$', eventsource),
 url(r'^es/$', TemplateView.as_view(template_name="eventsource.html")),
 * Python 虚拟环境搭建
 [[file:contents/python_environment.org][python虚拟环境搭建]]
+* Python - 第三方平台接口的库
+[[file:codesnippet/sdk/][SDK示例]]
+* Series
+Series有层次化索引.
+
+* Matplotlib
+绘图
+pip install seaborn
+
+* anaconda使用
+** 配置
+安装之后修改终端配置文件:
+export PATH="/anaconda3/bin:$PATH"
+
+** 命令
+conda list  # 列出软件包
+conda list --export  # 导出软件包
+conda create -n ch1env --file <export file>  # 创建名为ch1env的环境并且导入软件包
+conda create --name testenv python=3  # 创建环境
+source activate testenv  # 进入testenv环境
+conda env export -n testenv  # 以yaml格式打印指定环境
+conda remove -n testenv --all  # 删除环境, 环境名称仍然保留在~/.conda/environment.txt
+conda serach numpy  # 搜索包
+conda update conda  # 升级conda
+
+.condarc配置文件遵循yaml语法.
+
+* 数据科学工具包
+** VirtualBox
+** vagrant
+安装适合操作系统的最小版本
+为dst创建一个目录, 然后进入该目录, 执行命令:
+vagrant init data-science-toolbox/dst  # 创建一个名为Vagrant File的配置文件
+vagrant up  # 创建dst并开始下载对应的文件.
+vagrant ssh  # 登录到虚拟环境
+vagrant suspend  # 挂起虚拟环境
+
+* 500lines - python
+https://github.com/aosabook/500lines
+
+** DBDB
+https://blog.csdn.net/xinkexueguanli/article/details/52552074
+
+文件组成:
+tool.py 数据库的命令行工具, 可以通过终端对数据库进行操作
+interface.py 定义了DBDB类, 对底层的二叉树结构进行封装, 开放词典接口以供键值操作
+logical.py 定义了逻辑层, 是键值操作的抽象接口
+    LogicalBase 提供了逻辑更新的抽象接口(如get, set), 同时负责管理存储对象的锁以及对内部节点
+    的解引用
+    ValueRef指向数据库中二进制数据对象的Python对象, 是对数据库中数据的引用
+binary_tree.py 定义了逻辑接口下具体的二叉树算法
+    BinaryTree实现二叉树及其基本操作, 实现的是一个数据不可变的二叉树, 每次数据更新都会返回一颗
+    新树, 新树的大部分数据由于同旧树一致所以直接与旧树共享那部分数据
+    BinaryNode  二叉树中的节点
+    BinaryNodeRef  是ValueRef的子类, 实现对二叉树节点的引用
+
+physical.py 定义物理层
+    Storage类提供持久化的记录存储.
+
+* torndb
+** 连接丢失的问题
+当mysql重启或者到达最大空闲连接时间(wait_timeout设置单位为秒)时, 之前建立的连接会断开.
+此时客户端并不知道该连接已经断开了, 需要处理
+
+在执行sql的时候, 捕获OperationalError异常, 然后重新执行一次sql语句即可.
+
+** Too many connections
+连接太多, 可以通过max_connections来控制最大的连接数. mysql的连接数可以通过以下命令查看:
+show processlist;
+
+torndb在创建数据库连接时如果出错, 会将错误隐藏起来, 不会抛出到上层. 因此在建立连接的时候,
+可以通过判断self.<db>._db是否为None来进行检查. 也可以修改torndb的源码.
+
+tornado在开启debug模式时, 修改代码自动重启后, 不会断开数据库连接.
+

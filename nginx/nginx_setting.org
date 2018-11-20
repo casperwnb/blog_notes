@@ -59,5 +59,3 @@ server {
 client_max_body_size 20m;  // 设置body最大为20M
 
 然后重启nginx即可.
-
-

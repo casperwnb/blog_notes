@@ -1,3 +1,376 @@
+* Tornado 基本使用流程
+** 最简单的框架
+#+BEGIN_SRC python
+import tornado.web
+import tornado.options
+import tornado.httpserver
+import tornado.ioloop
+
+from tornado.options import define, options
+define("port", default=8088, type=int, help="default port")
+
+class User(tornado.web.RequestHandler):
+    def get(self):
+        self.write("Hello, User")
+
+def main():
+    tornado.options.parse_command_line()
+    app = tornado.web.Application(
+        handlers=[(r"/", User)],
+        debug=True
+    )
+    # debug的值会存储在app对象的settings中
+
+    httpserver = tornado.httpserver.HTTPServer(app)
+    httpserver.listen(options.port)
+    tornado.ioloop.IOLoop.instance().start()
+
+main()
+#+END_SRC
+
+基本思路是:
+1. 先导入需要使用的库, tornado.web, tornado.options, tornado.httpserver,
+   tornado.ioloop
+2. 定义命令行参数
+3. 定义处理函数
+4. 初始化app, httpserver 并监听端口
+   可以直接使用原始的Application
+   也可以先继承该类,
+   #+BEGIN_SRC python
+urls = [(r"/", User)]
+class MyApplication(tornado.web.Application):
+    def __init__(self):
+        config = {}
+        super(MyApplication, self).__init__(handlers=urls, **config)
+        self.db = "database"
+        # config中的数据会存储到settings中, 在User类中可以使用self.settings['xx']来访问
+
+# 使用
+app = MyApplication()
+
+class User(tornado.web.RequestHandler):
+    def get(self):
+        db = self.application.db
+   #+END_SRC
+5. 实例化ioloop, 并启动
+
+** 错误处理方法
+在每个处理类中都可以重写write_error方法
+#+BEGIN_SRC python
+class User(tornado.web.RequestHandler):
+    def write_error(self, status_code, **kwargs):
+        self.write("user define error handle, code={}, other info:{}".format(status_code, kwargs))
+#+END_SRC
+
+** 模板系统
+在初始化app对象时, 传入模板的路径
+#+BEGIN_SRC python
+app = tornado.web.Application(handlers=[], template_path="xxxx",
+    static_path="静态资源文件")
+# 一旦设置了静态资源文件路径, 就可以通过http://ip:port/static/xxx进行访问了.
+
+class BaseHandler(tornado.web.RequestHandler):
+    # 重写render方法, 继承该类后, render方法默认就有name字段了
+    def render(self, t, **kwargs):
+        T = kwargs
+        T["name"] = "casper"
+        super(BaseHandler, self).render(t, **T)
+#+END_SRC
+tornado模板可以通过extend和block语句支持继承.
+
+** UI模块
+#+BEGIN_SRC python
+class HelloModule(tornado.web.UIModule):
+    def render(self, data):
+        # 一种方法
+        return '<h1>Hello, World</h1>'
+        # 另一种方法
+        return self.render_string('modules/book.html', book=data)
+
+    # 使用embedded_css和embedded_javascript嵌入其他的css和js文件
+    def embedded_javascript(self):
+        return "document.write('hi!')"
+
+    def embedded_css(self):
+        return ".book {background-color: #F5F5F5}"
+
+    # 在闭合的</body>标签前添加完整的HTML标记    
+    def html_body(self):
+        return '<script>document.write("hello")</script>'
+
+    # 最好使用css_files来代替embedded_css
+    def css_files(self):
+        # 还可以包含外部的文件
+        return "/static/css/xx.css"
+
+    def javascript_files(self):
+        # 可以包含外部的文件
+        return "xxxx.js"
+
+app = tornado.web.Application(
+    handlers=[], ui_modulse={"Hello": HelloModule"}
+)
+
+# html页面
+{% module Hello('name') %}  <!-- 参数传递 -->
+#+END_SRC
+
+** tornado同步
+使用httpclient获取远端数据
+#+BEGIN_SRC python
+import tornado.httpclient  # 是同步请求
+
+client = tornado.httpclient.HTTPClient()
+# response是一个HTTPResponse对象, 允许访问HTTP响应的任何部分, 不只是body
+response = client.fetch('http://jsonplaceholder.typicode.com/comments')
+print(response.body)
+
+# 使用siege测试
+# brew install siege
+# siege http://127.0.0.1:8088/ -c10 -t10s  # 并发10个, 
+#+END_SRC
+
+AsyncHTTPClient是异步HTTP请求
+#+BEGIN_SRC python
+class AsyncHandler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    def get(self):
+        client = tornado.httpclient.AsyncHTTPClient()
+        client.fetch('http://jsonplaceholder.typicode.com/comments', callback=self.on_response)
+
+    def on_response(self, response):
+        print(response.body)
+        # 一定手动finish
+        self.finish()
+#+END_SRC
+
+异步装饰器和finish方法
+#+BEGIN_SRC python
+class GenHandler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    @tornado.gen.engine
+    def get(self):
+        client = tornado.httpclient.AsyncHTTPClient()
+        response = yield tornado.gen.Task(client.fetch,
+            'http://jsonplaceholder.typicode.com/comments')
+        print(response.body)
+        self.finish()
+#+END_SRC
+
+** tornado长轮询
+服务器推送技术允许web应用实时发布更新, 同时保持合理的资源使用以及确保可预知的扩展.
+最流行的技术是让浏览器发起连接来模拟服务器推送更新, 这种方式的HTTP连接被称为长轮询或comet请求.
+
+长轮询意味着浏览器只需启动一个HTTP请求, 其连接的服务器会有意保持开启. 浏览器只需要等待更新
+可用时服务器"推送"响应. 当服务器发送响应并关闭连接后, 或浏览器客户端请求超时, 客户端只需打开
+一个新的连接并等待下一个更新.
+
+长轮询的好处: 极大的减少了web服务器的负载, 服务器只有当其接收一个初始请求和再次发送响应时处理连接
+大部分时间没有新的数据、连接也不会消耗任何处理器资源. 并且浏览器兼容性也是另一个好处.
+任何支持ajax请求的浏览器都可以执行推送请求.
+
+python中长轮询的原理:
+1. 首先建立客户端连接, 服务器保持这个连接
+2. 当服务器的状态发生变化时, 通过这个连接返回数据, 并断开该连接, 客户端再重新建立连接.
+
+长轮询的原理:
+长轮询是客户端向服务器发送一个刷新请求, 并保持连接打开. 服务器收到请求后不立即响应, 等到需要
+推送消息时再返回, 然后客户端再次发送刷新请求并等待推送.
+
+长轮询不再需要频繁发送刷新请求, 但长期等待的http连接可能断开, 需要考虑异常处理.
+长轮询请求等待过程中服务端处理进程不能被阻塞.
+
+
+** 长轮询的缺陷
+HTTP长轮询在站点或特定用户状态的高度交互反馈通信中很有用. 但缺陷如下:
+1. 当使用长轮询开发应用时, 记住对于浏览器请求超时间隔无法控制是非常重要的. 由浏览器决定在任何中断
+   情况下重新开启HTTP连接.
+2. 许多浏览器限制了对于打开的特定主机的并发请求数量, 当有一个连接保持空闲时, 剩下的用来下载网站
+   内容的请求数量就会有限制.
+3. 一旦服务器重启后, 就无法进行主动推送, 需要客户端再一次的建立连接才可以
+
+** python长轮询代码
+[[http://www.cnblogs.com/huazi/archive/2012/11/25/2787290.html][另外的例子]]
+
+[[https://www.jianshu.com/p/6e890428744c][好像是一样的例子]]
+
+#+BEGIN_SRC python
+import tornado
+import tornado.web
+import tornado.options
+import tornado.ioloop
+import tornado.httpserver
+
+from tornado.options import options, define, parse_command_line
+define("port", default=8088, type=int, help="port")
+
+class StatusManage(object):
+    callbacks = set()
+    def register(self, callback):
+        if callback not in self.callbacks:
+            self.callbacks.add(callback)
+
+    def notify(self):
+        self.callbacks = set(c for c in self.callbacks
+        if self.callbackHelper(c))
+
+    def callbackHelper(self, callback):
+        callback('Hello')
+        # 返回false是为了让服务器释放这次请求
+        return False
+
+class NotifyHandler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    def get(self):
+        # async_callback函数在tornado4+ 中已经移除
+        st = self.application.st.register(
+            self.async_callback(self.on_msg)
+        )
+
+    # 客户端断开连接或者socket读写错误的时会触发该方法, 可以让服务器做一些清理操作
+    # ioloop没有保证读写出错的时候做什么以及如何做. 这些都是由iostream来操作的, 因为iostream就是
+    # 对ioloop的封装, 增加了错误处理以及各种情况下的回调、读写缓存等
+    # iostream调用on_connection_close这个回调函数的是self.close()函数
+    # 以下函数中调用了self.close
+    # 1.在iostream的_handle_events函数中(该函数由ioloop调用)
+    # 2.在_run_callback中, 当执行回调失败时调用, 说明当服务端代码出错时, 执行self.close
+    # 3.在_handle_read中调用
+    # 4.在read_from_fd中调用, 即直接从socket读数据
+    # 5.在_handle_write中调用
+    # 6.在read_from_fd中调用, _handle_read最终还是调用read_from_fd
+    # 7.在connect中调用, 对于使用iostream作为client连接, 也会调用
+    def on_connection_close(self):
+        print("client close")
+
+    def on_msg(self, msg):
+        self.write(msg)
+        print("get msg:{}".format(msg))
+        self.finish()
+
+class SendMsg(tornado.web.RequestHandler):
+    def get(self):
+        self.application.st.notify()
+
+class MyApplication(tornado.web.Application):
+    def __init__(self):
+        super(MyApplication, self).__init__(handlers=[
+            (r"/", NotifyHandler),
+            (r"/sendmsg", SendMsg),
+        ], debug=True)
+        self.st = StatusManage()
+
+def main():
+    parse_command_line()
+    app = MyApplication()
+    httpserver = tornado.httpserver.HTTPServer(app)
+    httpserver.listen(options.port)
+    tornado.ioloop.IOLoop.instance().start()
+
+main()
+#+END_SRC
+测试方法:
+1. 使用postman连接"/"
+2. 使用postman连接/sendmsg, 用于触发消息发送
+如果需要使用JavaScript, 建立连接的代码如下:
+#+BEGIN_SRC js
+$(document).ready(function() {
+    document.session = $('#session').val();
+    setTimeout(requestInventory, 100);
+}
+
+function requestInventory() {
+    console.log("SS");
+    jQuery.getJSON('//localhost:8000/cart/status', {session: document.session},
+        function(data, status, xhr) {
+            $('#count').html(data['inventoryCount']);
+            setTimeout(requestInventory, 0); // 获取到数据后立即再一次建立连接
+	}
+    );
+}
+#+END_SRC
+
+** tornado web服务器的4大组件
+ioloop: 是全局的tornado事件循环, 是服务器的引擎核心. tornado.ioloop.IOLoop.current()就是默认
+的tornado ioloop实例.
+
+app实例: 代表一个完整的后端app, 会挂接一个服务端套接字端口对外提供服务. 一个ioloop实例中可以有
+多个app实例. 一般几乎不会使用多个.
+
+handler类: 代表业务逻辑, 业务代码就在此处
+
+路由表: 将指定的url规则和handler挂接起来, 形成一个路由映射表. 当请求到来时, 根据请求的访问url
+查询路由映射表来找到相应的业务handler.
+
+之间的关系是: 一个ioloop包含多个app, 一个app包含一个路由表, 一个路由表包含多个handler.
+ioloop是服务的引擎核心, 负责接收和响应客户端请求, 负责驱动业务handler的运行, 负责服务器内部定时
+任务的执行.
+
+#+BEGIN_SRC python
+class User(tornado.web.RequestHandler):
+    def get(self):
+        pass
+
+class MyApp(tornado.web.Application):
+    def __init__(self):
+        super(MyApp, self).__init__(handlers=[(r"/", User)])
+
+def main():
+    app = MyApp()
+    app.listen(8088)
+    tornado.ioloop.IOLoop.current().start()
+
+if '__main__' == __name__:
+    main()
+#+END_SRC
+** 用户验证 - authenticated装饰器
+#+BEGIN_SRC python
+class BaseHandler(tornado.web.RequestHandler):
+    def get_current_user(self):
+        # get_current_user确保返回登录用户的信息即可
+        # 使用authenticated装饰器时, 需要重写该函数
+        # 当tornado构建重定向URL时, 会给查询字符串添加一个next参数, 其中包含了发起重定向到
+        # 登录页面的URL资源地址, 可以使用self.get_argument("next", "/")来获取重定向登录后用户
+        # 回到的页面
+        return self.get_secure_cookie("username")
+
+class WelCome(BaseHandler):
+    @tornado.web.authenticated
+    def get(self):
+        # get方法在被调用前, authenticated装饰器会确保current_user属性有值, 如果current_user的值
+        # 为假(None, False, 0, "), 任何GET或HEAD请求都将把访客重定向到应用设置中login_url指向的
+        # url, 非法用户的POST请求将返回一个带有403状态的HTTP响应
+        # 在POST中可以重写write_error方法, 判断错误码是否是403
+        # 如果是403, 此时可以强制跳转到login_url, self.redirect("/login", True)  # 301跳转
+        # authenticated装饰器依赖于current_user和login_url
+        self.render('index.html', user=self.current_user)
+
+
+settings = {
+    "login_url": "/login",
+}
+
+app = tornado.web.Application([
+    (r"/", Welcome"),
+])
+#+END_SRC
+** auth模块
+authorize_redirect方法用来将一个未授权用户重定向到外部服务器的验证页面, 在验证页面中, 用户登录
+服务, 并让自己的应用拥有访问他账号的权限. 通常会在用户带着一个临时访问码返回自己的应用时使用
+get_authenticaed_user方法, 调用get_authenticated_user方法会把授权跳转过程提供的临时凭证替换成
+属于用户的长期凭证.
+
+auth模块使用了Tornado的异步HTTP请求.
+
+* WebSocket
+** 介绍
+websocket api是下一代客户端-服务器的异步通信方式. 该通信取代了TCP套接字, 使用ws或wss协议.
+可用于任意的客户端和服务器程序. websocket api可以用于服务器和客户端在给定的时间范围内的任意时刻,
+相互推送信息. websocket并不局限于以ajax或xhr方式通信. websocket不受跨域通信的限制.
+
+协议的格式是: ws://URL, 或者wss://URL, websocket是在标准HTTP上实现的.
+
+websocket建立连接时, open方法会被调用, on_message: 接受到消息时调用, on_close客户端关闭时被调用
+write_message用于向客户端范松消息, close方法用于关闭连接.
 * Tornado异步问题 - 如何解决
 #+BEGIN_SRC python 问题代码如下
 from concurrent.futures import ThreadPoolExecutor
@@ -109,3 +482,6 @@ class SaveImageHandler(tornado.web.RequestHandler):
             with open(savePath, 'wb') as f:
                 f.write(image['body'])
 #+END_SRC
+* Tornado源码
+http://www.nowamagic.net/academy/detail/13321002
+
