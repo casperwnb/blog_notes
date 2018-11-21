@@ -245,7 +245,6 @@ include /etc/letsencrypt/options-ssl-nginx.conf;
 ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
    #+END_SRC
    
-
 * Openresty - 使用
 ** 编译安装
 源码目录解说:

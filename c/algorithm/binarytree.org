@@ -1,0 +1,2 @@
+* 简单二叉树的代码实现
+[[file:code/binarytree.c][c代码实现]]
