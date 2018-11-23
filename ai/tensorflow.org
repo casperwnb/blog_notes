@@ -1,0 +1,424 @@
+* Tensorflow
+** 简介
+tensorflow与cntk, mxnet, theano同属于符号计算架构.
+
+** 编译安装tensorflow
+1. 建立一个python的虚拟环境
+   pyenv virtual 3.6.5 tensorflow
+2. 安装软件
+   pip install -U pip six mumpy wheel mock
+   pip install -U keras_applications==1.0.5 --no-deps
+   pip install -U keras_preprocessing==1.0.3 --no-deps
+3. 安装Bazel
+   brew tap bazelbuild/tap
+   brew tap-pin bazelbuild/tap
+   brew install bazel
+
+   brew upgrade bazel  # 更新bazel
+4. 下载tensorflow源码
+   git clone https://github.com/tensorflow/tensorflow.git
+   cd tensorflow
+   # 可以切换到最新的稳定发布版本
+5. 测试检查代码
+   run the following test for versions r1.12 and before:
+   bazel test -c opt -- //tensorflow/... -//tensorflow/compiler/... -//tensorflow/contrib/lite/...
+
+   For versions after r1.12 (like master), run the following:
+   bazel test -c opt -- //tensorflow/... -//tensorflow/compiler/... -//tensorflow/lite/...
+
+   如果以上命令执行出错, 可以先执行:  bazel clean --expunge, 然后再执行
+
+   然后执行configure
+   ./configure
+
+   bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package
+
+   # build the package
+   ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg 
+
+   # install
+   pip install /tmp/tensorflow_pkg/tensorflow-version-tags.whl
+
+* 模型
+** 模型里的内容以及意义
+一个标准的模型结构分为输入、中间节点、输出三大部分. 如何让这3部分连通起来学习规则并可以进行计算,
+则是tensorflow所做的事情.
+
+tensorflow将中间节点以及节点之间的运算关系(OPS)定义在自己内部的一个"图"上, 全通过一个"会话(
+session)"进行图中OPS的具体运算.
+可以理解为:
+"图"是静态的, 无论做任何加减乘除操作, 它们只是将关系搭建在一起, 不会有任何运算.
+"会话"是动态的, 只有启动会话后才会将数据流向图中, 并按照图中的关系运算, 并将最终的结果从图中流出.
+
+构建一个完整的图一般需要定义3种变量. 如图:[[file:img/tf_model.png][模型中的图]]
+输入节点: 网络的入口
+用于训练的模型参数(学习参数): 是连接各个节点的路径
+模型中的节点(OP): 最复杂的就是OP, 可以用来代替模型中的中间节点, 也可以代表最终的输出节点, 是网络
+中的真正结构.
+
+上图中所组成的网络静态模型, 在实际训练中, 通过动态的会话将图中的各个节点按照静态的规则运算起来,
+每次的迭代都会对图中的学习参数进行更新调整, 通过一定次数的迭代运算之后最终所形成的图便是所要的
+"模型". 在会话中, 任何一个节点都可以通过会话的run函数进行计算, 得到该节点的真实值.
+** 模型内部的数据流向
+数据流向分为正向和反向.
+
+
+正向: 数据从输入开始, 依次进行各节点定义的运算, 一直运算到输出是模型最基本的数据流向.
+
+反向: 在训练场景下会用到, 会使用一个叫做反向链式求导的方法. 先从正向的最后一个节点开始,
+计算此时结果值与真实值的误差, 会形成一个用学习参数表示误差的方程, 然后对方程中的每个参数求导,
+得到其梯度修正值, 同时反推出上一层的误差, 这样就将该层节点的误差按照正向的相反方向传递到上一层,
+并接着计算上一层的修正值, 如此反复下去一步一步的进行传播, 直到传递到第一个节点.
+
+** tensorflow开发的基本步骤
+1. 定义tensorflow输入节点
+   定义方法如下:
+   1. 通过占位符定义: 一般使用这种方式
+      X = tf.placeholder("float")
+   2. 通过字典类型定义, 一般用于输入比较多的情况
+      inputdict = {
+          'x': tf.placeholder("float"),
+          'y': tf.placeholder("float")
+      }
+   3. 直接定义, 很少使用
+2. 定义"学习参数"的变量
+   W = tf.Variable(tf.zeros([1]), name="bias")
+3. 定义"运算"
+4. 优化函数, 优化目标
+5. 初始化所有变量
+   tf.global_variables_initializer()初始化所有变量的步骤, 必须在所有变量和OP定义完成之后,
+   这样才能保证定义的内容有效, 否则初始化之后定义的变量和OP都无法使用session中的run来进行
+   算值.
+6. 迭代更新参数到最优解
+7. 测试模型
+8. 使用模型
+
+* Tensorflow编程基础
+** 编程模型
+tensorflow的命名来源于本身的运行原理: tensor(张量)意味着N维数组, flow(流)意味着基于数据流图的计算
+tensorflow是张量从图像的一端流动到另一端的计算过程, 也是tensorflow的编程模型.
+
+** session的使用
+[[file:code/tensorflow_use.py][session的使用]]
+
+** 保存模型
+#+BEGIN_SRC python
+saver = tf.train.Saver()
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    
+    saver.save(sess, "<path>")  # 如果filename不存在则自动创建
+#+END_SRC
+
+保存模型的其他方法:
+saver = tf.train.Saver({"weight": W, "bias": b})  # 将W变量的值保存到weight名字中
+
+** 载入模型
+#+BEGIN_SRC python
+saver = tf.train.Saver()
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    
+    saver.restore(sess, "<filename>")
+#+END_SRC
+
+** 保存检查点
+在训练中也需要保存, 因为tensorflow训练模型时难免会出现中断的情况, 希望能够将中间参数保留下来,
+否则下次又要重新开始计算. 这种在训练中保存模型, 习惯上称之为保存检查点.
+
+[[file:code/tf_save_session.py][参考代码]]
+
+* TensorBoard可视化
+** 介绍
+tensorflow提供了一个可视化工具tensorBoard, 可以将训练过程中的各种绘制数据展示出来. 包括标量(
+scalars)、图片(images)、音频(audio)、计算图(graph)、数据分布、直方图(Histograms)和嵌入式向量.
+可以通过网页来观察模型的结构和训练过程中各个参数的变化.
+
+tensorboard不会自动把代码展示出来, 它是一个日志展示系统, 需要在session中运算图时, 将各种类型的
+数据汇总并输出到日志文件中. 然后启动tensorboard服务, tensorboard读取这些日志文件, 并开启6006
+端口提供web服务, 让用户可以在浏览器中查看数据.
+
+进入生成的目录中, 然后执行命令: tensorboard --logdir ./
+
+* Tensorflow基础类型定义以及操作函数
+** 张量及操作
+张量是tensorflow的标志, tensorflow程序使用tensor数据结构来代表所有的数据. 计算图中, 操作间传递
+的数据都是tensor.
+
+可以将tensor看为一个n维的数组或列表, 每个tensor中包含了类型(type), 阶(rank)和形状(shape)
+
+阶(rank): 指的就是维度. 但张量的阶和矩阵的阶并不是同一个概念. 主要是看有几层中括号.
+例如:
+#+BEGIN_SRC python
+a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]  # 传统意义上的3阶矩阵
+# 但是在张量中的阶数表示为2阶, 因为有两层中括号
+#+END_SRC
+
+| rank | 实例              | 例子                       |
+|    0 | 标量(只有大小)    | a=1                        |
+|    1 | 向量(大小和方向)  | b=[1, 1, 1]                |
+|    2 | 矩阵(数据表)      | c=[ [1, 2], [3, 4]]        |
+|    3 | 3阶张量(数据立体) | d=[ [ [1], [1], [1], [1]]] |
+
+形状(shape): 用于描述张量内部的组织关系. 形状可以通过python中的整数列表或元组来表示.
+如: 一个二阶张量a=[ [1, 2, 3], [4, 5, 6]]形状是两行三列, 描述为(2, 3).
+
+** 张量相关操作
+张量的相关操作包括类型转换、数值操作、形状变换和数据操作.
+
+** 规约计算
+规约计算的操作都会有降维的功能, 在所有reduce_xxxx系列操作函数中, 都是以xxxx的手段降维, 每个函数
+都有axis这个参数, 即沿某个方向, 使用xxxx方法对输入的tensor进行降维.
+axis的默认值是None, 即把input_tensor降到0维, 即一个数.
+对于二维input_tensor而言: axis=0, 按列计算; axis=1, 按行计算.
+
+** 共享变量
+共享变量在复杂的网络中用处非常广泛.
+在构建模型时, 需要使用tf.Variable来创建一个变量(也可以理解成节点). 例如:
+# 创建一个偏执的学习参数, 在训练时, 该变量不断更新
+biases = tf.Variable(tf.zeros([2]), name="biases")
+
+在某些情况下, 一个模型需要使用其他模型创建的变量, 两个模型一起训练. 如果使用tf.Variable将会生成
+一个新的变量, 此时需要原来的biases变量值, 可以通过get_variable()实现共享变量来解决这个问题.
+
+get_variable一般会配合variable_scope一起使用, 以实现共享变量.
+tensorflow中使用get_variable生成的变量是以指定的name属性为唯一标识, 并不是定义的变量名称.
+使用时一般通过name属性定位到具体变量, 并将其共享到其他模型中.
+
+get_variable只能定义一次指定名称的变量.
+#+BEGIN_SRC python
+with tf.variable_scope("test1",):
+    var1 = tf.get_variable("firstvar", shape=[2], dtype=tf.float32)
+#+END_SRC
+
+variable_scope使用作用域中的reuse参数来实现共享变量功能. 该参数表示使用已经定义过的变量. 此时
+get_variable将不会再创建新的变量, 而是去图(一个计算任务)中get_variable所创建过的变量中找与name
+相同的变量.
+#+BEGIN_SRC python
+with tf.variable_scope("test"):
+    var3 = tf.get_variable("firstvar", shape=[2], dtype=tf.float32)
+
+with tf.variable_scope("test", reuse=True):
+    var4 = tf.get_variable("firstvar", shape=[2], dtype=tf.float32)
+
+with tf.variable_scope("test", reuse=True):
+    var5 = tf.get_variable("firstvar", shape=[2], dtype=tf.float32)
+
+# var4, var5的值是一样的
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    print("var4 v:{}, var5 v:{}".format(var4.eval(), var5.eval()))
+#+END_SRC
+
+在多模型训练中, 常常会使用variable_scope对模型张量进行区分, 并统一为学习参数进行默认的初始化.
+在变量共享方面, 可以使用tf.AUTO_REUSE来为reuse属性赋值, 第一次调用是reuse的值为False, 再次调用
+其值为True.
+
+variable_scope的as用法, 使用as时, 所定义的作用域变量xxxscope将不再受到外围的scope所限制.
+#+BEGIN_SRC python
+import tensorflow as tf
+
+with tf.variable_scope("scope1") as sp:
+    var1 = tf.get_variable("v", [1])
+
+print("sp:", sp.name)
+
+with tf.variable_scope("scope2"):
+    var2 = tf.get_variable("v", [1])
+
+    with tf.variable_scope(sp) as sp1:
+        var3 = tf.get_variable("v3", [1])
+print("sp1: ", sp1.name)
+print("var2: ", var2.name)
+print("var3: ", var3.name)  # var3作用域就不受scope2的影响
+#+END_SRC
+
+操作符的作用域: 操作符不仅受到tf.name_scope作用域的限制, 同时也受到tf.variable_scope作用域的限制
+#+BEGIN_SRC python
+with tf.variable_scope("scope1") as sp:
+    with tf.name_scope("bar"):  # tf.name_space只能限制op, 不能限制变量的命名
+        v = tf.get_variable("v", [1])  # v是一个变量
+        x = 1.0 + v  # x为一个op, 实现1.0+v操作
+
+print("v: ", v.name)
+print("x.op: ", x.op.name)
+#+END_SRC
+
+tf.name_scope函数中, 还可以使用空字符将作用域返回到顶层.
+#+BEGIN_SRC python
+with tf.variable_scope("scope"):
+    with tf.name_scope("bar"):
+        v = tf.get_variable("v", [1])
+        x = 1.0 + v
+        with tf.name_scope(""):
+            y = 1.0 - v
+
+print("v:",v.name)
+print("x.op:",x.op.name)
+print("y.op:",y.op.name)
+
+with tf.variable_scope("scope2"):
+    var2 = tf.get_variable("v", [1])
+    with tf.variable_scope(sp) as sp1:
+        with tf.variable_scope("") :
+            var4 = tf.get_variable("v4", [1])
+print("var4:",var4.name)  # var4多个一个空的层
+#+END_SRC
+
+* 图的基本操作
+** 图的使用
+可以在一个tensorflow中手动建立其他的图, 也可以根据图里的变量获得当前的图.
+
+#+BEGIN_SRC python
+c = tf.constant(0.0)  # 在默认的图中建立
+g = tf.Graph()  # 新建一个图
+
+with g.as_default():
+    c1 = tf.constant(0.0)  # 在新建的图里添加变量
+    print(c1.graph)
+    print(g)
+    print(c.graph)
+
+g2 = tf.get_default_graph()  # 获取默认的图
+print(g2)
+
+# 重置图, 必须保证当前图的资源已经全部释放了, 否则会报错
+tf.reset_default_graph()
+g3 = tf.get_default_graph()
+print(g3)
+#+END_SRC
+
+** 获取张量
+在图里可以通过名字得到其对应的元素. get_tensor_by_name()
+#+BEGIN_SRC python
+a = tf.constant(1)
+print("a.name: ", a.name)
+t = g.get_tensor_by_name(name="Const:0")
+print(t)
+#+END_SRC
+
+一般在需要使用名字时, 都会在定义的同时为它指定好固定的名字, 如果不清楚某个元素的名字, 可以将
+其打印出来, 回填到代码中, 再次运行即可.
+
+** 获取节点操作
+get_operation_by_name()
+#+BEGIN_SRC python
+g3 = tf.get_default_graph()
+
+a = tf.constant([[1.0, 2.0]])
+b = tf.constant([[1.0], [3.0]])
+print("a name:", a.name)
+
+# tensor1 并不是OP, 而是张量, OP其实是描述张量中的运算关系, 是通过访问张量的属性找到的
+tensor1 = tf.matmul(a, b, name="exampleop")
+print("tensor1 v:", tensor1.name, tensor1)
+
+test=g3.get_tensor_by_name("exampleop:0")
+print("tensor_name:", test)
+print("tensor_opname:", tensor1.op.name)
+
+testop = g3.get_operation_by_name("exampleop")
+print("testop: ", testop)
+#+END_SRC
+
+** 获取元素列表, 对象
+e = g.get_operations()  # 获取元素列表
+print(e)
+
+# as_graph_element(obj, allow_tensor=True, allow_operation=True)
+# 该函数具有验证和转换功能, 多线程方面会偶尔用到
+e2 = g.as_graph_element(a)
+print(e2)
+* 配置分布式TensorFlow
+** 角色及原理
+ps: 作为分布式训练的服务端, 等待各个终端(supervisors)来连接
+worker: 在tensorflow的代码注释中被称为supervisors, 作为分布式训练的运算终端
+chief supervisors: 在众多运算终端中必须选择一个作为主要的运算终端. 该终端在运算终端中最先启动,
+其功能是合并各个终端运算后的学习参数, 将其保存或载入.
+
+每个具体角色网络标识是唯一的, 各个角色的网络构建部分代码必须100%相同. 分工如下:
+1. 服务端作为一个多方协调者, 等待各个运算终端来连接.
+2. chief supervisors在启动时统一管理全局的学习参数, 进行初始化或从模型载入
+3. 其他运算终端只是负责得到其对应的任务并进行计算, 并不会保存检查点. 用于tensorboard可视化中的
+   summary日志等参数信息.
+
+整个过程都是通过RPC协议来通信.
+
+** 部署方法
+配置过程中, 需要先建立一个server, server将ps以及所有worker的ip端口准备好. 然后使用
+tf.train.Supervisor中的managed_session来管理一个打开的session. session只是负责运算, 通信协调的
+事情就都交给supervisor来管理.
+
+代码如下:
+[[file:code/ps.py][ps.py]]
+
+将ps.py复制两份, 一份命名为chief_worker.py, 另一份命名为worker.py.
+将chief_worker.py中的strjob_name改为"worker",
+worker.py文件中的strjob_name改为"worker", task_index改为1, 并且需要注释sv.summary_computed语句
+
+注意: 该例子中使用了summary的一些方法将运行时态的数据保存起来, 以便于使用tensorboard进行查看,
+但在分布式部署时, 使用该功能还需要注意:
+1. 不能使用sv.summary_computed, 因为worker不是chief supervisors, 在worker中是不会为supervisor
+   对象构造默认summary_writer的
+2. 手写控制summary与检查点文件保存时, 需要将chief supervisors以外的worker全部去掉才可以. 可以使用
+   supervisor按时间间隔保存的形式来管理.
+
+** 动态图
+动态图是相对于静态图而言的. 动态图是指在python中代码被调用后, 其操作立即被执行的计算. 与静态图
+最大的区别是不需要使用session来建立会话. 动态图是tensorflow1.3+以后出现的.
+#+BEGIN_SRC python 开启动态图计算功能
+import tensorflow.contrib.eager as tfe
+tfe.enable_eager_execution()
+#+END_SRC
+
+在创建动态图的过程中, 默认建立了一个session. 所有的代码都在该session中进行, 而且该session具有
+进程相同的生命周期, 一旦使用动态图就无法实现静态图中关闭session的功能. 无法实现多session操作.
+
+** 数据集(tf.data)
+3种数据输入模式:
+1. 直接使用feed_dict利用注入模式进行数据输入, 适用于少量的数据集输入.
+2. 使用队列式管道, 适用于大量的数据集输入
+3. 性能更高的输入管道, 适用于tensorflow 1.4+, 是为动态图功能提供的大数据集输入方案(动态图的数据
+   集输入只能使用该方法).
+
+* 识别模糊手写数字
+** 介绍
+相关步骤:
+1. 导入NMIST数据集
+2. 分析MNIST样本特点定义变量
+3. 构建模型
+4. 训练模型并输出中间状态参数
+5. 测试模型
+6. 保存模型
+7. 读取模型
+
+MNIST是一个入门级的计算机视觉数据集. 下载地址: http://yann.lecun.com/exdb/mnist/
+也可以利用tensorflow下载:
+#+BEGIN_SRC python
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+#+END_SRC
+以上代码会自动下载数据集并将文件解压到当前代码所在同级目录下的MNIST_data文件夹中.
+one_hot=True表示将样本标签转换为one_hot编码.
+
+one_hot编码: 例如一共10类, 0的one_hot为1000000000, 1为:0100000000, 依次类推.
+即只有一个位为1, 1所在的位置就代表着第几类.
+
+MNIST数据集中的图片是28*28 pixel, 所以每一副图就是1行784列的数据, 括号中的每个值代表一个像素.
+如果为黑白图片, 图片中黑色的地方数值为0, 有图案的地方数值为0~255之间的数字, 代表其颜色的深度.
+
+彩色图片一个像素会由3个值来表示RGB
+
+** MNIST数据集组成
+MNIST训练数据集中, mnist.train.images是一个形状为[55000, 784]的张量, 第一维用来索引图片, 第二维
+用来索引每张图片中的像素点. 此张量里的每个元素都表示某张图片里的某个像素的强度值, 介于0~255.
+
+MNIST里包含3个数据集: 第一个是训练数据集, 另外两个分别是测试数据集(mnist.test)、验证数据集(
+mnist.validation).
+
+** 定义学习参数
+模型也需要权重值和偏执量, 它们被统一叫做学习参数. 使用tf.Variable来定义学习参数.
+
+一个Variable代表一个可修改的张量, 定义在tensorflow的图中, 其本身也是一种变量.
+Variable定义的学习参数可以用于计算输入值, 也可以在计算中被修改.
+
