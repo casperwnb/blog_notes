@@ -266,5 +266,21 @@ em(font size of the element), 指相对于父元素的字体大小的单位.
 
 腾讯云提供DV免费ssl证书
 
+* 小程序开发
+** 客服消息
+[[https://developers.weixin.qq.com/miniprogram/introduction/custom.html][客服消息参考链接]]
+
+1. 需要在小程序内部添加一个客服消息按钮, 如下:
+   <button open-type="contact" bindcontact="handleContact"></button>, 通过bindcontact事件回调
+   获取到用户所点消息的页面路径 path 和对应的参数 query.
+
+   也可以使用如下的代码:
+   <contact-button type="default-dark size="20" session-from="weapp"></contact-button>
+   type的有效值为: default-light和default-dark. 用户从该按钮进入会话时,开发者将收到带上本参数
+   的事件推送, 本参数可用于区分用户进入客服会话的来源.
+2. 可以开启消息推送
+3. 如果不开启消息推送, 则可以通过web端对消息进行回复.
+   https://mpkf.weixin.qq.com/, web版登录地址
+
 * 链接
 https://juejin.im/post/5b0e431f51882515497d979f: 获取微信小程序源码

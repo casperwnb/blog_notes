@@ -329,3 +329,7 @@ iBGP使得内部的路由器能够找到到达外网目的地最好的边界路�
 
 BGP使用升级版本的路径矢量路由协议(path-vector protocol).
 
+* 资料
+https://blog.csdn.net/yunhua_lee/article/details/8146830
+https://zhenbianshu.github.io/2018/12/talk_about_tcp_timewait.html
+

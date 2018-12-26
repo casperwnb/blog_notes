@@ -1,0 +1,88 @@
+* 动态加载模块 - importlib
+#+BEGIN_SRC python
+from importlib import import_module
+
+l = import_module("module_name")
+# l就代表了该模块, 此时就可以使用l.xx来访问该模块中定义的内容
+#+END_SRC
+
+* 查找模块
+#+BEGIN_SRC python
+import pkgutil
+
+# 如果有子模块, 则ispkg为True, name表示模块的名称
+for data in pkgutil.iter_modules(["<module_path>"]):
+    print(data)
+#+END_SRC
+
+* functools.wraps的实现
+#+BEGIN_SRC python
+
+# 需要处理的函数的属性
+WRAPPER_ASSIGNMENTS = (
+    '__module__', '__name__', '__qualname__', '__doc__', '__annotations__')
+
+WRAPPER_UPDATES = ('__dict__',)
+
+def update_wrapper(
+    wrapper, wrapped, assigned = WRAPPER_ASSIGNMENTS,
+    updated = WRAPPER_UPDATES):
+    """Update a wrapper function to look like the wrapped function
+       wrapper is the function to be updated
+       wrapped is the original function
+       assigned is a tuple naming the attributes assigned directly
+       from the wrapped function to the wrapper function (defaults to
+       functools.WRAPPER_ASSIGNMENTS)
+       updated is a tuple naming the attributes of the wrapper that
+       are updated with the corresponding attribute from the wrapped
+       function (defaults to functools.WRAPPER_UPDATES)
+    """
+    for attr in assigned:
+        try:
+            value = getattr(wrapped, attr)
+        except AttributeError:
+            pass
+        else:
+            setattr(wrapper, attr, value)
+
+    for attr in updated:
+        getattr(wrapper, attr).update(getattr(wrapped, attr, {}))
+
+    # Issue #17482: set __wrapped__ last so we don't inadvertently copy it
+    # from the wrapped function when updating __dict__
+    wrapper.__wrapped__ = wrapped
+    # Return the wrapper so this can be used as a decorator via partial()
+    return wrapper
+
+def wraps(wrapped,
+    assigned = WRAPPER_ASSIGNMENTS,
+    updated = WRAPPER_UPDATES):
+    """Decorator factory to apply update_wrapper() to a wrapper function
+       Returns a decorator that invokes update_wrapper() with the decorated
+       function as the wrapper argument and the arguments to wraps() as the
+       remaining arguments. Default arguments are as for update_wrapper().
+       This is a convenience function to simplify applying partial() to
+       update_wrapper().
+    """
+    return partial(update_wrapper, wrapped=wrapped,
+                   assigned=assigned, updated=updated)
+#+END_SRC
+其原理就是将原函数的"__name__", "__doc__"等信息保存到包装函数中
+
+* functools.lru_cache的实现
+主要原理是:
+在函数中定义一个字典, 通过传入的参数生成一个key, 如果key存在则直接从字典中取值, 否则先计算一下结果
+将计算后的结果保存到字典中作为缓存.
+
+python标准库中实现的比较复杂, 考虑到了各种情况, 具体代码可以参考: [[https://github.com/python/cpython/blob/3.7/Lib/functools.py][functools.py]]
+
+* 魔术方法
+** 属性相关
+#+BEGIN_SRC python
+class A(object):
+    pass
+
+a = A()
+a["name"]  # 访问__getitem__方法
+a.name  # 访问__getattr__方法
+#+END_SRC

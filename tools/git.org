@@ -1,0 +1,108 @@
+* 参考链接
+[[https://docs.microsoft.com/en-us/azure/devops/articles/perform-migration-from-svn-to-git?view=vsts][将svn的代码使用git来管理]]
+[[http://www.worldhello.net/gotgit/][git操作指南]]
+[[https://blog.csdn.net/nwpushuai/article/details/78778602][repo介绍]]
+
+* 忽略已经添加到版本控制中的文件
+1. 将需要忽略的文件添加到.gitignore文件中
+2. 执行命令将已经在版本控制中的文件移除即可
+   git rm -r --cached <filename>
+3. 提交、推送即可
+
+* 暂时保存目前工作
+git stash  # 保存工作
+git stash list  # 查看保存的信息, 该命令显示的最左一列就是stash的序号, 越大表示是较早的stash
+git stash pop  [stash@{2}]  # 弹出, 默认是stash@{0}, 
+git stash apply  # 恢复数据到工作区后, stash list中的数据不会变化
+
+* config
+git config --local  # 默认值, 只对某个仓库有效
+git config --global  # 对当前用户所有仓库有效
+git config --system 对系统所有登录用户有效
+
+git config --list  # 显示配置信息
+
+git config --local --unset user.name  # 删除local下的用户名配置
+
+本地厂库的配置信息会配置在.git/config文件中, 可以执行修改该文件的内容, 也可以通过git命令来操作.
+
+* 常用命令
+git add -u  # 添加修改过的文件到暂存区, 没有加入版本管理的文件不用管
+git reset --hard  # 清除项目中暂存区和工作区的内容, 需要小心操作, 注意: 添加到版本管理中的文件
+git diff -- <filename>  # 查看暂存区与工作区指定文件名的区别
+git reset HEAD  # 将暂存区的内容设置为与工作区一致, --soft把HEAD指向的commit恢复到指定的commit,
+暂存区和工作区不变, --hard把HEAD, 暂存区、工作区都修改为指定的commit时的状态, --mixed 默认参数,
+把HEAD、暂存区修改为指定的commit的时候的文件状态, 工作区保持不变.
+
+* 日志查询
+git log --all  # 查看所有分支的日志信息
+git log --oneline
+git log -n<number> --oneline
+git log --all --graph
+git log <branch-name>  # 查看某个分支的提交日志
+
+* 帮助文档
+git help --web log  # 查看log的帮助文档
+
+* 其他辅助命令
+git cat-file -t <sha1>  # 查看git对象的类型
+git cat-file -p <sha1>  # 查看git对象的内容
+git cat-file -s <sha1>  # 查看git对象的大小
+
+* 分离头指针
+使用git checkout <sha1> 从历史版本中checkout出来, 并在该情况下做了commit操作后, 如果不使用tag
+或branch进行标记, 则会在git的提交版本中丢失.
+
+找回来的方法如下:
+1. git reflog  查看操作记录
+2. 找到在分离头指针下所做的commit的sha值
+3. 给该值添加上tag或者分支即可
+
+* 分支
+** 删除
+git branch -d branchname  # 删除分支
+
+* 修改提交的信息
+git commit --amend  # 修改最近一次的提交信息.
+git rebase -i <sha1>  # 变基操作, 会对给定的sha1之后的commit进行修改, 然后根据后面的注释
+选择合适的选项
+
+git rebase -i <sha1>  # 也可以合并多个commit
+
+如果想将所有的提交合并到第一个提交中, 也是使用rebase命令, 在交互命令中, 将第一个commit的hash值
+填入即可.
+
+如果想合并不连续的几个提交, 此时会有提示信息, 可以执行git rebase --edit-todo重新进行编辑,
+编辑完成之后执行命令git rebase --continue即可.
+
+在编辑时可以修改它们的前后位置.
+
+不要合并已经提交远程分支的纪录.
+
+* 撤销操作
+git checkout -- <filename>  # 将暂存区中的内容恢复到工作区, 即丢弃未提交到暂存区中的内容
+git reset <sha1> -- <filename>  # 撤销git add的操作, 将暂存区保存到工作区中, 暂存区与仓库一致
+* 比较
+git diff <sha1> <sha2> -- <filename>  # 比较两个提交中的某个文件的差异
+
+* git协议
+| 协议       | 语法格式                            | 说明                     |
+|------------+-------------------------------------+--------------------------|
+| 本地协议1  | /path/to/repo.git                   | 哑协议                   |
+| 本地协议2  | file:///path/to/repo.git            | 智能协议                 |
+| http/https | http://git-server.com/path/repo.git | 平时接触到的都是智能协议 |
+| ssh协议    | user@git-server.com:path/repo.git   | 工作中最常用的只能协议   |
+
+** 备份
+git clone --bare /path/to/repo/.git <localname>  # 使用哑协议备份一个裸仓库
+git clone --bare file:///path/to/repo/.git  <localname>  # 使用只能协议备份一个仓库
+* 问题解决
+** remote: error: refusing to update checked out branch
+解决方案:
+修改remote仓库中的/path/to/repo/.git/config文件, 新增内容:
+#+BEGIN_SRC text
+[receive]
+denyCurrentBranch = ignore
+#+END_SRC
+然后重新推送即可.
+

@@ -1,0 +1,362 @@
+* 配置
+** CONFIG
+CONFIG SET命令在不重启Redis的情况下动态修改部分Redis配置
+
+CONFIG GET获取当前的配置情况, CONFIG GET * 获取所有的配置
+
+** 多数据库
+Redis默认支持16个数据库, 可以通过配置参数databases来修改这一数字.
+
+Redis不支持自定义数据库的名字, 每个数据库都以编号命名, 不支持为不同的数据库设置不同的密码.
+多个数据库之间并不是完全隔离的, 如FLUSH ALL会清空Redis实例中所有的数据.
+
+一个空Redis实例占用的内存只有1M左右
+
+* 命令
+Redis不区分命令大小写.
+
+** 命令
+KEYS *  # 获取所有的键名列表, KEYS后面的规则支持glob风格通配符格式.
+当键比较多时, KEYS * 可能会影响性能.
+
+redis-cli KEYS "*" | xargs redis-cli DEL  # 删除数据库0中的所有键
+redis-cli DEL 'redis-cli KEYS "*"'  # 这个语句无法执行成功
+
+TYPE key  # 获取键值的类型
+
+redis对键的命名没有强制限制的要求.
+
+MSET key1 v1 key2 v2
+MGET key1 key2
+
+GETBIT 用于获取一个字符串类型键指定位置的二进制位的值, 索引从0开始.
+SETBIT 设置二进制位
+BITCOUNT 获取值中是1的二进制位数
+BITOP 可以对多个字符串类型键进行二进制位运算
+
+OBJECT ENCODING <key>  # 查看键的内部编码方式
+
+** hash操作
+hset key field1 value1 field2 value2
+hmset key field1 value1 field2 value2
+hmget key field1 field2
+hgetall key  # 获取hash的所有键和值
+hincrby key field1 incrvalue
+hdel key field1
+hkeys key  # 获取key中的所有键
+hvals key  # 获取key中的所有值
+hlen key  # 获取key中的元素个数
+
+** list操作
+LREM # 删除列表中的值
+LINDEX key idx  # 返回指定索引的元素
+LSET key idx val  # 将指定索引的元素的值设置为val
+BRPOP key  timeout  # 如果键为空, 则会阻塞, timeout为0表示永远阻塞
+BRPOP 可以同时接收多个键, 意义是同时检测多个键, 如果所有键都没有元素则阻塞, 只要有一个键有元素,
+则从该键中弹出元素.
+
+** 集合操作
+sadd key value1 value2  # 向key中添加value1 value2
+SREM keys v1  # 从集合中删除一个或多个元素.
+SMEMBERS key  # 获取集合中的所有元素
+SISMEMBER key  # 判断元素是否在集合中
+SDIFF key1 key2  # 集合之间的差集
+SINTER  # 对多个集合执行交集
+SUNION  # 对多个集合执行并集
+SCARD key  # 获取集合中的元素个数
+SDIFFSTORE
+SRANDMEMBER key # 随机取元素, 返回的数据并不是非常的随机. 原因是: 集合类型采用的存储结构(散列表)
+造成的, SRANDMEMBER命令从集合获取一个随机元素时, Redis首先会从所有桶中随机选择一个桶, 然后再从
+桶中的所有元素中随机选择一个元素, 所以元素所在的桶中的元素数量越少, 其被随机选中的可能性就越大.
+
+SPOP key  # 弹出一个元素
+
+** 有序集合
+集合与列表的区别:
+列表是通过链表实现的, 有序集合是使用散列表和跳表实现的.
+列表中不能简单的调整某个元素的位置, 有序集合可以
+有序集合要比列表类型更消耗内存
+
+ZADD key score member  # 向有序集合加入一个元素, 如果元素存在则会使用新的分数替换原有的分数.
+ZSCORE key member  # 获取member的分数
+ZRANGE key start_score stop_score  # 获取某个索引范围内的元素列表
+
+** 生存时间
+expire key x  # 让key的生存时间为x秒.
+pexpire key x  # 单位是毫秒
+expireat key timestamp  # 使用unix时间戳作为第二个参数表示键的生存时间的截止时间
+pexpireat key timestamp  # 以毫秒表示
+
+persist key  # 取消键的生存时间
+set或getset命令为键赋值时会清除键的生存时间
+其他只对键值进行操作的命令, 如incr, lpush, hset, zrem均不会影响键的生存时间.
+
+ttl key  # 查看生存时间
+pttl key  # 查看生存时间
+
+** SORT命令
+可以对列表、集合和有序集合类型键进行排序, 并且可以完成与关系数据库中的连接查询相类似的任务.
+
+对有序集合类型排序时会忽略元素的分数, 只针对元素自身的值进行排序.
+
+sort命令可以通过alpha参数实现按照字典顺序排列数子元素.
+
+sort key desc  # 倒序排列
+
+BY参数:
+如:
+lpush sortdata 2 3 4
+set s:2 100
+set s:3 90
+set s:4 80
+sort sortdata by s:*  # 使用s:*的值作为排序时的大小值, 默认为升序排列
+
+BY后面的就是键名, 当参考键名不包含"*"时(即常量键名, 与元素值无关). SORT命令将不会执行排序操作.
+如: sort sortdata by anytext (anytext键也可以不存在)
+
+如果几个元素的参考键值相同, 则sort命令会再比较元素本身的值来决定元素的顺序.
+当某个元素的参考键不存在时, 会默认参考键的值为0.
+
+参考键虽然支持散列类型, 但"*"只能在"->"符号前面(即键名部分)才有用, 在"->"后会被当成字段名本身
+而不会作为占位符被元素的值替换.
+
+sort sortkey by somekey->*time desc  # ok
+sort sortkey by somekey->somefield*  # 可能会有些小问题
+
+sort的时间复杂度是: O(n+mlogm), n是要排序的列表中的元素个数, m表示要返回的元素个数
+开发中使用sort命令时需要注意:
+1. 尽可能减少带排序键中元素的数量
+2. 使用limit参数只获取需要的数据
+3. 如果要排序的数据量很大, 尽可能使用store参数将结果缓存
+
+
+** GET参数
+GET参数不影响排序, 其作用是使SORT命令的返回结果不再是元素自身的值, 而是GET参数中指定的键值.
+GET参数的规则同BY参数. 如:
+sort tag:python:posts BY post:*->time desc GET post:*->title
+
+在一个sort命令中可以有多个GET参数, BY参数只能有一个.
+
+** store参数
+如将排序后的数据存储到某个变量中
+sort tag:py:posts by post:*->time desc get post:*->tag get post:*->time get # store sort.result
+保存后的键的类型为列表类型, 如果键已经存在则会覆盖它.
+
+store命令常用来结合expire命令缓存排序结果.
+
+* 事务
+** 原理
+将属于一个事务的命令发送给Redis, 然后再让redis依次执行这些命令. 如:
+MULTI
+sadd "user:1:follower" 2
+sadd "user:2:follower" 1
+EXEC
+
+使用EXEC命令让redis将等待执行的事务队列中的所有命令按照发送顺序依次执行.
+Redis保证一个事务中的所有命令要么都执行, 要么都不执行. 如果在发送EXEC前客户端断线了, Redis会清空
+事务队列, 事务中的所有命令都不会执行. 一旦发送了EXEC命令, 所有的命令就都会被执行, 即使客户端断线
+也可以.
+
+** 事务错误处理
+错误原因有:
+语法错误: 只要有一个命令有语法错误, 执行EXEC命令后Redis就会直接返回错误, 连语法正确的命令也不执行
+运行错误: 如果事务里的一条命令出现了运行错误, 事务里的其他命令依然会继续执行(包括出错命令后的
+命令), 如:
+MULTI
+set key 1
+sadd key 2
+set key 3
+exec
+
+Redis事务没有提供回滚功能.
+redis事务还能保证一个事务内的命令依次执行而不被其他命令插入.
+
+** watch命令
+watch可以监控一个或多个键, 一旦其中有一个键被修改(或删除), 之后的事务就不会被执行. 监控一直持续到
+exec命令(事务中的命令是在exec之后才执行的, 在multi命令后可以修改watch监控的键值).
+如:
+set key 1
+watch key
+set key 2
+multi
+set key 3
+exec
+get key
+上述代码中, 在执行watch命令后, 事务执行前修改了key的值为2, 因此事务中的命令set key 3不会执行,
+exec命令返回空结果.
+
+执行exec命令后会取消对所有键的监控, 如果不想执行事务中的命令也可以使用unwatch命令来取消监控.
+
+使用watch命令检测了一个拥有生存时间的键, 到期自动删除后并不会被watch命令认为该键被改变.
+
+* 管道
+Redis的底层通信协议对管道提供了支持. 通过管道可以一次性发送多条命令并在执行完后一次性将结果返回.
+当一组命令中的每条命令都不依赖于之前命令的执行结果时就可以将这组命令一起通过管道发出.
+
+管道通过减少两端的通信次数来实现降低往返时延累计值.
+#+BEGIN_SRC python
+r = redis.StrictRedis(host="xx", port=p, db=0)
+pipe = r.pipeline(transaction=False)  # 是否启用事务
+pipe.set("foo", "bar")
+pipe.get("foo")
+result = pipe.execute()
+print(result)
+#+END_SRC
+
+管道可以进行链式调用:
+r.pipeline().set("foo", "bar").get("foo").execute()
+
+* 内部编码
+redis为每种数据类型都提供了两种内部编码方式. 内部编码方式的选择对于开发者来说是透明的, redis会
+根据实际情况自动调整. 查看内部编码方式使用 object encoding <key>
+
+在配置文件中可以可以定REDIS_ENCODING_ZIPLIST方式编码散列类型的时机.
+
+* Redis 调用lua代码
+** 命令详解
+redis从2.6.0+就可以使用lua脚本解释器的EVAL和EVALHASH命令测试评估脚本.
+
+EVAL命令的第二个参数紧跟Lua命令后的参数表示KEYS参数的个数,
+从第三个参数开始代表Redis键名称. Lua脚本可以访问由KEYS全局变量(如KEYS[1], KEYS[2]...)组成的
+一维数据的参数.
+EVAL最后附加的参数表示的是对应KEYS键名所对应的值, 并且Lua脚本可以通过使用ARGV全局变量访问其值
+
+#+BEGIN_SRC lua
+eval 'return {KEYS[1], KEYS[2], ARGV[1], ARGV[2]}' 2 k1 k2 v1 v2
+#+END_SRC
+redis.call(), redis.pcall()是两个可以在lua脚本中调用的redis命令.
+当发生错误时,call将抛出一个lua类型的错误. pcall将捕获错误并返回表示错误的lua表类型.
+
+注意:
+EVAL命令的语义中, 所有的键应该通过使用kEYS数组来传递.
+eval "return redis.call('set', 'key', 'value')" 0  # 传递0个参数
+eval 'return redis.call("set", KEYS[1], "value")' 1 name  # 传递的key为name
+
+在redis的脚本中不能使用全局变量, 只允许使用局部变量以防止脚本之间互相影响.
+
+** python调用redis中的lua代码
+#+BEGIN_SRC python
+import redis
+
+r = redis.StrictRedis(host="127.0.0.1", port=16379, db=0)
+lua = """
+redis.call("set", KEYS[1], ARGV[1])
+local e = redis.call("get", KEYS[1])
+local e2 = redis.call("get", "name:" .. KEYS[3])  -- 不推荐拼接键名
+redis.log(redis.LOG_WARNING, "msg")  -- 通过redis.log可以将lua的执行结果写入redis日志
+return e
+"""
+
+rcmd = r.register_script(lua)
+ret = rcmd(keys=["name"], args=["casper"])
+print(ret)
+#+END_SRC
+Redis3.0带有了集群功能, 如果脚本中的键名没有使用keys参数传递则无法兼容集群.
+
+redis脚本禁止使用lua标准库中与文件或系统调用相关的函数, 在脚本中只允许对redis的数据进行
+处理.
+
+redis 还提供了其他的命令:
+script load:  将脚本加入缓存
+script exists 检查脚本是否存在
+script flush  清空脚本缓存, redis将脚本的sha1摘要加入到脚本缓存后会永久保留, 不会删除
+script kill  强制终止当前脚本的执行
+
+redis提供了lua-time-limit参数限制脚本的最长运行时间, 默认为5s. 当脚本运行时间超过
+这一限制后, redis将开始接受其他命令但不会执行(以确保脚本的原子性, 因为此时脚本没有终止), 而是
+会返回busy.
+
+演示:
+A-client: eval "while true do end" 0
+B-client: get foo  # 返回busy错误
+B-client: script kill # 可以强制结束lua脚本
+如果当前执行的脚本对redis的数据进行了修改(如调用了set, lpush等)则script kill命令不会终止脚本的
+运行以防止脚本只执行了一部分. 此时只能通过shutdown nosave终止redis.
+
+** 命令行执行lua脚本
+redis-cli --eval <luafile> k1 k2 , argv1 argv2 
+注意: 键与值之间是通过","分割开并且注意逗号之间的空格,
+多个键之间使用空格隔开即可, 多个值之间也是通过空格隔开.
+
+* 主从配置
+只需要在从数据库的配置文件中加入"slaveof 主数据库IP地址 主数据库端口"即可, 主数据库无需进行任何
+配置.
+
+从库启动: redis-server --port 6380 --slaveof 127.0.0.1:6379
+默认情况下从数据库是只读的, 如果直接修改从数据库会出现错误, 可以通过设置从数据库的slave-read-only
+为no以使从数据库可写, 但是对从数据库的任何改动都不会同步给任何其他数据库, 并且一旦主数据库中更新
+了对应的数据就会覆盖从数据库的.
+
+如果主数据库设置了密码, 则从数据库的配置文件中的masterauth参数需要设置为该密码.
+
+slaveof 也可以在运行时进行修改.
+slaveof no one 使当前数据库停止接受其他数据库的同步并转成主数据库.
+
+当从数据库启动后, 会向主数据库发送sync命令, 主数据库收到sync后会开始在后台保存快照并将保存期间
+接收到的命令缓存起来. 当快照完成后, redis会将快照文件和所有缓存命令发送给从数据库. 从数据库收到
+后会载入快照文件并执行收到的缓存命令. 当主从数据库断开重连后会重新执行上述操作, 不支持断点续传.
+
+** 同步过程
+redis使用TCP协议通信, 可以使用telnet工具伪装成一个从数据库来了解同步的具体过程.
+
+1. telnet 127.0.0.1 6379  # 连接redis
+2. PING  # 返回PONG, 如果redis设置了密码, 则需要先进行验证
+   使用命令: AUTH <pwd>
+3. REPLCONF listening-port <port>  # 向主数据库发送replconf命令, 说明自己的端口号, 查看端口号可以
+   使用lsof -i tcp, 然后根据PID来进行查找
+4. SYNC
+   此时会收到主数据库发来的数据, 从数据库会将收到的内容写入到硬盘的临时文件中, 当写入完成后从数据
+   库会用该临时文件替换RDB快照文件, 之后的操作就和RDB持久化时启动恢复的过程一样. 在同步的过程中,
+   从数据库不会阻塞, 默认情况下, 从数据库会用同步前的数据对命令进行响应. 可以配置
+   slave-serve-stale-data为no来让从数据库在同步完成前对所有命令都回复错误.
+   之后主数据库的任何数据变化都会同步给从数据库, 同步的内容和redis通信协议一样.
+   
+** 命令命名
+redis支持在配置文件中将命令重命名, 如: rename-command FLUSHALL sdfsfssdfsdf, 将flushall命令
+重命名为其他的命令.
+
+rename-command flushall ""  # 禁用某个命令
+
+* 监控
+配置 slowlog-log-slower-than xx微秒 将执行时间超过这一限制的命令进行记录.
+slowlog-max-len: 限制记录的条数
+
+slowlog get: 获取当前命令的耗时命令日志. 每条日志都由以下4个部分组成.
+1. 该日志唯一ID
+2. 该命令执行的UNIX时间
+3. 该命令的耗时时间, 单位为微秒
+4. 命令以及参数
+
+monitor: 用来监控redis执行的所有命令, redis-cli也支持该命令. 此时redis执行的任何命令都会在
+redis-cli中打印出来, monitor非常影响redis的性能.
+
+* Redis命令属性
+Redis的不同命令拥有不同的属性, 如是否是只读命令、是否是管理员命令等.
+
+** REDIS_CMD_WRITE
+该类型的命令会修改redis数据库的数据. 一个只读的从数据库会拒绝执行拥有REDIS_CMD_WRITE属性的命令.
+Lua脚本中执行了拥有REDIS_CMD_RANDOM属性的命令后, 不可以再执行拥有REDIS_CMD_WRITE属性的命令.
+
+** REDIS_CMD_DENYOOM
+该类型命令可能会增加Redis占用的存储空间, 拥有该属性的命令显然是拥有REDIS_CMD_WRITE的.
+当数据库占用的空间达到了配置文件中maxmemory参数指定的值且根据maxmemory-policy参数的空间释放
+规则无法释放空间时, redis会拒绝执行拥有redis_cmd_denyoom属性的命令.
+
+** REDIS_CMD_NOSCRIPT
+该类型的命令无法在redis脚本中执行.
+命令有: BRPOP, BRPOPLPUSH, BLPOP, SPOP, AUTH, SAVE, MULTI, EXEC, DISCARD, SYNC, REPLCONF, 
+MONITOR, SLAVEOF, DEBUG, SUBSCRIBE, UNSUBSCRIBE, PSUBSCRIBE, PUNSUBSCRIBE, WATCH, UNWATCH, EVAL,
+EVALSHA, SCRIPT
+
+** REDIS_CMD_RANDOM
+当一个脚本执行了拥有REDIS_CMD_RANDOM属性的命令后, 就不能执行拥有REDIS_CMD_WRITE属性的命令.
+命令有: SPOP, SRANDMEMBER, RANDOMKEY, TIME
+
+** REDIS_CMD_SORT_FOR_SCRIPT
+拥有该类型的命令会产生随机结果, 在脚本中调用这些命令时会对结果进行排序.
+命令由: SINTER, SUNION, SDIFF, SMEMBERS, HKEYS, HVALS, KEYS
+
+** REDIS_CMD_LOADING
+当redis启动时, 只会执行拥有REDIS_CMD_LOADING属性的命令.
+命令有: INFO, SUBSCRIBE, UNSUBSCRIBE, PSUBSCRIBE, PUNSUBSCRIBE, PUBLISH
+

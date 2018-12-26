@@ -59,3 +59,54 @@ server {
 client_max_body_size 20m;  // 设置body最大为20M
 
 然后重启nginx即可.
+* 使用nginx配置登录
+1. 先使用htpasswd命令生成用户名和密码文件
+   htpasswd -bc <filepath> <USERNAME> <PASSWORD>
+2. 配置nginx
+   #+BEGIN_SRC conf nginx.conf
+server {
+    # ... 其他的设置
+    location / {
+        auth_basic "Restricted";
+        auth_basic_user_file  <htpasswd-genfile>;
+    }
+
+    location /nopwd {
+        auth_basic off;  # 关闭登录验证
+    }
+}
+   #+END_SRC
+
+* nginx使用自签名证书
+1. 创建CA
+   CA包含公钥与私钥, 私钥用于给其他证书签名, 公钥用于别人验证证书的有效性.
+   echo 01 > ca.srl
+   openssl genrsa -des3 -out ca-key.pem 2048
+
+   openssl req -new -x509 -days 365 -key ca-key.pem -out ca.pem
+2. 为nginx创建证书
+   openssl genrsa -des3 -out server-key.pem 2048
+   openssl req -subj '/CN=dev.regisry.com' -new -key server-key.pem -out server.csr
+   openssl x509 -req -days 365 -in server.csr -CA ca.pem -CAkey ca-key.pem -out server-cert.pem
+
+   openssl rsa -in server-key.pem -out server-key.pem  # 删除server key中的passphrase
+
+   更改证书名称:
+   cp server-cert.pem server-cert.crt
+   cp server-key.pem server-key.key
+3. 修改配置文件
+#+BEGIN_SRC conf nginx.conf
+server {
+    listen 443;
+    ssl on;
+    ssl_certificate /root/ssl/server-cert.crt;
+    ssl_certificate_key /root/ssl/server-key.key;
+}
+#+END_SRC
+4. 给系统安装CA
+   update-ca-trust enable
+   cp ca.pem /etc/pki/ca-trust/source/anchors/ca.crt
+   update-ca-trust extract
+* Nginx切换upstream时, 产生502
+原因是check_mode模块的default_down=True
+解决方法就是将该字段设置为False

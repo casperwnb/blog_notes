@@ -1,8 +1,13 @@
 * SSH简单使用
+ubuntu中ssh服务端的安装命令: apt install openssh-server, 然后重启一下ssh服务
+客户端安装: apt install openssh-client
+
 ssh user@host -p <port>  # 使用用户名登录指定端口的ssh服务, 之后输入密码即可
 
 可以对该命令使用命令别名:
 alias login_xx='ssh user@host -p <port>'
+
+是否运行ssh密码登录, 可以参考/etc/ssh/sshd_config中的PasswordAuthentication这一选项.
 
 * SSH Key生成
 ssh-keygen -t rsa -C "xxx" -f sshkey_filename
@@ -46,18 +51,27 @@ HOST <alias_name>
   HostName <ip> or <domain>
   Port <port>
   User <username>
+  IdentityFile ~/.ssh/id_rsa
 #+END_SRC
 对于配置格式: param value 也可以为 param=value, 其中 param 大小写不敏感; value 大小写敏感.
 此时使用 ssh alias_name即可登录服务器.
 
 部分配置参数的说明:
-Host: SSH 连接名
-HostName: 可以是通配符, 可以是 IP, 也可以是域名等
+Host: SSH 连接名, 即配置登录别名, HOST支持通配符, *代表0~n个非空白字符, ?代表一个非空白字符,
+!表示例外通配.
+HostName: 可以是通配符, 可以是 IP, 也可以是域名等. 指定远程主机名, 可以直接使用IP地址,
+如果包含"%h", 则实际使用时会被命令行的主机名替换.
+例如:设置为0.0.0.0.%h, ssh docker就会变成 0.0.0.0.docker
+
 User: 登录linux的用户名
-IdentifyFile: version 1 协议下默认是 ~/.ssh/identify,
+IdentifyFile: 指定密钥认证使用的私钥文件路径.可以指定多个密钥文件(以","分开).
+              在连接的过程中会依次尝试这些密钥文件.
+              version 1 协议下默认是 ~/.ssh/identify,
               version 2 协议下, 默认是依次匹配: ~/.ssh/id_dsa, ~/.ssh/id_ecdsa,
               ~/.ssh/id_rsa, 还有 version 2 兼容模式
-
+              
+              也可以使用一些指定参数代替:
+              %d: 本地用户目录, %u 本地用户, %l 本地主机名 %h 远程主机名, %r远程用户名
 LocalForward: 端口的内部跳转
 Port: 端口设置, 默认 SSH 的端口是 22
 Protocal: 协议版本号1 或者 2
@@ -128,6 +142,7 @@ Host <alias_name>
   HostName <ip> or domain
   Port <port>
   User <username>
+# IdentityFile /Users/demon/.ssh/linux  # 这是私钥文件
    #+END_SRC
 
 ** 注意

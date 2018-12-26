@@ -1,0 +1,64 @@
+* Bash中Complete自动补全命令
+** complete参数
+complete [-abcdefgjksuv] [-o comp-option] [-A action] [-G globpat] [-W wordlist] \
+    [-P prefix] [-S suffix] [-X filterpat] [-Ffunction] [-C command] name [name ...]
+
+-W wordlist: 自动补全使用的wordlist, 使用IFS分割, 与当前输入的word做前缀比较,提示匹配的wordlist.
+-S suffix: 向每个自动补全word后添加suffix后缀
+-P prefix: 添加前缀
+
+** 例子
+1. 建立一个shell脚本, 名字随意, 此处叫做casperauto.sh, 内容如下:
+   #+BEGIN_SRC shell
+# 该函数定义了COMP_WORDS, COMP_CWORD变量, 还可以定义其他的变量, $1必须放在最后
+# $1表示的是./casperauto.py
+_py_completion() {
+    COMPREPLY=( $(
+        COMP_WORDS="${COMP_WORDS[*]}"\
+        COMP_CWORD=$COMP_CWORD\
+        OTHERWHATIWANT=1 $1)
+    )
+}
+
+complete -F _py_completion ./casperauto.py   
+   #+END_SRC
+2. 建立一个可以执行的文件, 文件内容可以是bash,也可以是python脚本, 任何其他的可以执行的文件都可以,
+   该执行文件的输出以空格分割的字符串即可, 此处以python脚本为例:
+   #+BEGIN_SRC python
+
+#!/usr/bin/env python  # 这一行语句必须添加, 否则默认会使用bash来执行该文件, 结果就不对了
+import os
+import sys
+
+WORD_LIST = ["hello", "hi"]
+
+def main():
+    try:
+        # 第0个元素是脚本的名称, 需要去除
+        cwords = os.environ["COMP_WORDS"].split()[1:]
+        cword = int(os.environ["COMP_CWORD"])
+        # 调试信息
+        with open("/tmp/casperauto.log", "ab") as f:
+            f.write(",".join(cwords))
+            f.write("\n")
+            f.write(" ".join(os.environ["COMP_WORDS"]))
+            f.write("\n")
+
+        results = []
+        word = cwords[-1] if cwords else ""
+        for v in WORD_LIST:
+            if v.startswith(word):
+                results.append(v)
+        result = " ".join(results)
+        result = result or " ".join(WORD_LIST)
+        print(result)
+    except Exception as e:
+        with open("/tmp/casperauto.log", "ab") as f:
+            f.write(e)
+            f.write("\n")
+
+    sys.exit(0)
+
+if '__main__' == __name__:
+    main()
+   #+END_SRC

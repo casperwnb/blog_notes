@@ -266,7 +266,6 @@ cmd+,  # 调出配置文件
 "explorer.autoReveal": false  # 关闭文件时, 左侧的文件树不乱跳
 explorer.confirmDelete:  # 默认打开, 删除文件时是否需要确认
 "editor.insertSpaces": true  # 将tab键换成空格键
-"editor.renderWhitespace": "none"  # 可以修改空格的渲染方式
 "editor.parameterHints.enabled"  # 设置参数预览
 "editor.quickSuggestionsDelay"  # 设置自动补全的延迟时间
 "editor.wordBasedSuggestions"  # 基于单词的自动补全

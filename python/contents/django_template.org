@@ -15,11 +15,6 @@ c = Context({'name': 'Nige', "items":["apple", "banana"]})
 print (t.render(c))
    #+END_SRC
 
-模板系统遇到变量名中的点号时会按照下述顺序尝试查找:
-1. 字典查找 foo["bar"]
-2. 属性查找 foo.bar
-3. 方法调用 foo.bar()
-4. 列表索引 foo.2
 
 模板系统将使用第一个可用的类型, 这是一种短路逻辑. 点号查找可以嵌套多层
 

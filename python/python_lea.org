@@ -107,6 +107,32 @@ class CasperQRCode(tornado.web.RequestHandler):
 <img src="host:/genqrcode" />
    #+END_SRC
 
+** 用列表实现字典功能
+class MyDict(object):
+    def __init__(self, size=999):
+        self.hash_list = [list() for _ in range(size)]
+        self.size = size
+
+    def __setitem__(self, key, value):
+        # 使用内置的hash函数计算hash值
+
+        hashed_key = hash(key) % self.size
+
+        for item in self.hash_list[hashed_key]:
+            if item[0] == key:
+                item[1] = value
+                break
+        else:
+            self.hash_list[hashed_key].append([key, value])
+            self.length += 1
+
+    def __getitem__(self, key):
+        hashed_key = hash(key) % self.size
+        for item in self.hash_list[hashed_key]:
+            if item[0] == key:
+                return item[1]
+        raise KeyError(key)
+
 * Python测试
 [[file:contents/python_test.org][Python测试]]
 

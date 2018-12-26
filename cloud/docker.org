@@ -1,3 +1,6 @@
+* 安装
+[[https://docs.docker.com/install/linux/docker-ce/ubuntu/][参考文档]]
+
 * 容器
 ** 介绍
 容器其实是一种沙盒技术. 沙盒就是能够像一个集装箱一样将应用装起来的技术, 这样应用于应用之间就有了
@@ -98,4 +101,96 @@ docker commit <containerid> xxx:tag  # 将运行的容器提交为一个新的�
 
 * 构造容器
 [[file:content/buildmydocker.org][构造容器]]
+
+* docker插件开发
+** 工作机制
+当用户的docker命令中使用了第三方插件, 首先docker客户端会向docker守护进程发起http请求. docker守护
+进程发现操作的对象是第三方插件时, 便会从特定的目录文件中发现匹配的插件, 并向其发起HTTP请求.
+
+docker插件是一个单独的进程, 不是docker daemon进程的一个模块. 插件进程与docker daemon进程运行于
+同一台机器或者不同的机器上. 通过注册特定的文件到docker daemon的机器上, 使得docker daemon进程
+发现插件进程. 插件进程可以运行在容器中, 或者容器外.
+
+docker daemon通过查询插件目录发现插件进程, 目前支持3中格式的文件:
+.sock文件: unix domain socket, 该文件的插件必须与docker daemon进程运行在同一台机器上.
+.spec: 普通文件, 文件中指定了插件进程的URL, 如: unix:///other.sock或tcp://localhost:8080
+.json: 包含了插件的json描述
+
+.spec, .json文件可以运行在另一台机器上, .sock文件必须位于/run/docker/plugins目录下. spec和json
+文件必须位于/etc/docker/plugins或者/usr/lib/docker/plugins目录下
+
+文件名就是插件的名称.
+
+docker首先从/run/docker/plugins目录查找.sock文件, 如果找不到再从/etc/docker/plugins目录和
+/usr/lib/docker/plugins查找spec和json文件, 如果找到其中一个就停止查找.
+
+插件通常应该在docker daemon启动之前启动, 在docker daemon停止后停止.
+
+docker daemon并不是启动的时候就去激活插件, 而是使用按需加载的方式去激活插件. 因此需要保证
+插件进程在用户使用前启动就可以了.
+
+** 利用systemd socket activation功能管理插件
+利用systemd的socket activation功能管理插件的启动顺序, docker提供的插件sdk已经支持socket 
+activation. 使用该方式需要编写两个文件service文件和socket文件.
+
+* Docker异常总结
+** docker ps 无响应, Node节点表现为NotReady
+解决方法步骤:
+1. 编辑daemon.json文件, 该文件通常位于/etc/docker中, 如果不存在可以创建该文件
+2. 添加设置
+   #+BEGIN_SRC json
+{
+    "debug": true
+}
+   #+END_SRC
+3. 向守护进程发送HUP信号以使其重新加载其配置
+   sudo kill -SIGHUP $(pidof dockerd)  # pidof是linux系统命令, 用于查找运行程序的进程id
+4. 打印堆栈信息
+   kill -SIGUSR1 $(pidof dockerd)
+   生成的调试信息可以在/var/run/docker/目录中找到
+5. 查看dmesg
+6. 通过查找社区Issues以及相关PR, 最后发现根本原因是runc的bug.
+   使用runc start或runc run启动容器时, (runc [2：INIT])打开一个 fifo 进行写入. 它的父runc进程 
+   将打开相同的 fifo 阅读. 通过这种方式, 它们可以同步. 如果stub process 在错误的时间退出,
+   那么父 runc 进程会永远被阻塞. 当两个 runc 操作相互竞争时会发生这种情况: runc run / start
+   和 runc delete, 它也可能由于其他原因而发生. 例如:内核的OOM killer可以选择杀死 stub process
+
+   解决方案:
+   通过解决 exec fifo 竞争来解决这个问题, 如果在我们打开 fifo 之前 stub process 退出,
+   那么返回一个错误.
+
+** docker在centos系统下以direct-lvm模式运行, 无法启动
+这个问题发生在使用devicemapper存储驱动时Docker试图重用之前使用 LVM thin pool.
+例如, 尝试更改节点上的 Docker 的数据目录时会发生此问题. 由于安全措施旨在防止 Docker
+因配置问题而意外使用和覆盖 LVM thin pool 中的数据, 因此会发生此错误.
+
+解决方案:
+要解决阻止Docker启动的问题, 必须删除并重新创建逻辑卷, 以便Docker将它们视为新的thin pool.
+警告: 这些命令将清除Docker数据目录中的所有现有镜像和卷, 在执行这些步骤之前备份所有重要数据.
+1. 停止docker
+   systemctl stop docker
+2. 删除docker目录
+   rm -rf /var/lib/docker
+3. 删除已经创建的thin pool逻辑卷
+   lvremove docker/thinpool
+4. 创建新的逻辑卷
+   lvcreate -L 500g --thin docker/thinpool --poolmetadatasize 256m
+   根据实际磁盘大小调整thinpool和metadata大小
+
+如果需要docker自动配置direct-lvm模式, 可以执行以下步骤:
+1. 编辑/etc/docker/daemon.json
+   将dm.directlvm_device_force = value从false更改为true.
+   #+BEGIN_SRC json
+{
+    "storage-driver": "devicemapper",
+    "storage-opts": [
+        "dm.directlvm_device_force=true"
+    ]
+}
+   #+END_SRC
+2. 除了删除逻辑卷之外, 还要删除docker卷组
+   vgremove docker
+3. 启动docker
+   systemctl start docker
+
 

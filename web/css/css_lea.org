@@ -395,3 +395,25 @@ flexbox布局模式被用来重新定义CSS中的布局方式,
           flex: 2;
 }
 #+END_SRC
+* CSS 实现动画
+#+BEGIN_SRC html
+<div>动画</div>
+
+div {
+    /* 1s时间完成动画 */
+    animation: move 1s linear infinite;
+}
+
+@keyframes move {
+    0% {right: -20px;}
+    50% {right: 0px;}
+    100% {right: -20px;}
+}
+#+END_SRC
+* CSS 雪碧图
+也叫做CSS Sprite, 也称为CSS精灵. 是一种CSS图像合并技术. 该方法是将小图标和背景图像合并到
+一张图片上, 然后利用css的背景定位来显示需要显示的图片部分. 使用css background和
+background-position属性渲染. 如: background-postion: -xpx -ypx;
+
+
+
