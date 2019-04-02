@@ -1,0 +1,1 @@
+self.redirect('/index#/userinfo')  怎么理解？

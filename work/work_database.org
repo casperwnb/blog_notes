@@ -1,0 +1,153 @@
+* 环境
+yum install epel-release
+yum search python3 | grep devel
+yum -y install python34-devel.x86_64
+curl https://bootstrap.pypa.io/get-pip.py | python3.4
+pip3 install virtualenv
+virtualenv -p /usr/local/python3/bin/python3 venv
+#启动虚拟环境
+source venv/bin/activate
+#退出虚拟环境
+deactivate
+
+* 线上服务
+wx: /opt/test/weixin  python wx.py
+backend: /opt/backend
+
+* 保险种类 - insurance_data_mainproducttypes
+id  typename   sort
+1	财产保险	5
+2	人寿保险	4
+3	信用保证	8
+4	责任保险	7
+5	年金保险	6
+6	意外保险	1
+7	疾病保险	2
+8	医疗保险	3
+9	失能收入损失	10
+10	护理保险	9
+
+insurance_data_subproducttypes.maintype_id = insurance_data_mainproducttypes.id
+insurance_data_thirdproducttypes.subtype_id = insurance_data_subproducttypes.id
+insurance_data_toubaojianyiv2.protect_type_id = insurance_data_thirdproducttypes.id
+
+* 获取保险计划的保险种类
+insurance_data_productplans.product_id = insurance_data_v3product.id
+insurance_data_v3product.product_type_id = insurance_data_thirdproducttypes.id
+
+* 查保险计划表单数据
+需要查找: insurance_data_feemodejianyi, insurance_data_feemodejianyi_item, insurance_data_xuanxiang
+
+* 投保模型
+投保建议:
+会将数据插入user_roletbjy表中, 数据有:
+role_id=>对应user_role中的主键id,
+tbjy_id=>对应user_wxusertbjy中的主键id,
+tbjyv2_id=>对应投保jianyiv2中的主键id, 返回主键id记为roletbjy_id
+
+然后将选定的产品信息记录到insurance_data_productplanwithvalue表中并返回一个主键id记为plan_vid,
+然后将plan_vid与roletbjy_id记录到user_roletbjy_plans中.
+
+微信端查询投保建议模型的数据流向是:
+1. 用户登录获取wxuser_id, 从user_wxusertbjy表中找到主键id记为tbjy_id
+2. 从表user_roletbjy中根据tbjy_id查出数据, 记录其中的主键id为roletbjy_id
+3. 在表user_roletbjy_plans中根据roletbjy_id进行查询得出productplanwithvalue_id
+4. 通过productplanwithvalue_id从表insurance_data_productplanwithvalue中查出该计划的参数以及计划的id
+5. 通过计划id就能得出计划的详细信息
+
+* 保险计划必有的字段
+保障额度(be)
+保障期限(q)
+年龄(a)
+
+* SQL语句
+1. 查询数据库中的年金保险
+select * from insurance_data_productplans 
+left join insurance_data_v3product on insurance_data_productplans.`product_id`=insurance_data_v3product.id 
+left join insurance_data_thirdproducttypes on insurance_data_thirdproducttypes.id=insurance_data_v3product.`product_type_id` 
+left join insurance_data_subproducttypes on insurance_data_thirdproducttypes.subtype_id = insurance_data_subproducttypes.id 
+left join insurance_data_mainproducttypes on insurance_data_subproducttypes.`maintype_id`=insurance_data_mainproducttypes.id 
+where insurance_data_mainproducttypes.id=5
+
+2. 查询投保推荐时的年金推荐
+select * from insurance_data_toubaojianyiv2
+left join insurance_data_thirdproducttypes on insurance_data_toubaojianyiv2.`protect_type_id`=insurance_data_thirdproducttypes.id
+left join insurance_data_subproducttypes on insurance_data_thirdproducttypes.`subtype_id`=insurance_data_subproducttypes.id
+left join insurance_data_mainproducttypes on insurance_data_subproducttypes.`maintype_id`=insurance_data_mainproducttypes.id
+and insurance_data_mainproducttypes.id=5;
+
+年金保险的subtype_id: 26, 27, 28
+意外险的subtype_id: 29,30,31,32,33,34,35,36,37,38,62,63
+
+* 插入insurance_data_productplanwithvalue时注意事项
+1. be, a, g等表单数据必须和原始的数据一致, 可以添加其他附加的辅助键
+
+* 投保模型
+id: 1690
+select * from insurance_data_toubaojianyiv2 where yusuan_min<12000 and yusuan_max>=12000 \
+and age_min<=33 and age_max>=33 and (child=2 or child=1) and (jobtype=2 or jobtype=1) \
+and (drive=3 or drive=2) and (sport=3 or sport=1) and (badhabit=2 or badhabit=1) and \
+(travel=3 or travel=2) order by select_order
+
+* 产品计划中的删选维度对应的表
+insurance_data_valuetags: 记录计划与筛选维度之间的关联关系, 并且也存储了其中的值
+insurance_data_valuetagsname: 只存储了筛选维度的名称
+
+sql语句:
+select * from insurance_data_valuetags as v 
+left join insurance_data_valuetagsname as n on v.tag_id = n.id
+ where plan_id=1047
+
+* 数据库中一些特殊的数据格式
+** 486: 保障期限数据需特殊处理, 
+"q2": ["10", "3", "1", "2", "4", "5", "7", "8", "9", "11", "6"],
+"q1": ["15", "7"]
+
+* 投保模型请求
+微信端数据展示 weixin项目 => Api2Handlers.py => api2/getProductInfo =>
+当前文件中的 GetProductInfoHandler 类, 请求wxapi/planinfo2接口 => web项目 => WxApiHandlers.py
+=> PlanInfo2类 => PlanInfo 类
+
+* MySAE
+http://1.casper.applinzi.com
+
+* 名片
+CREATE TABLE `card_scan_relation` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `scan_userid` int unsigned DEFAULT NULL,
+   original_userid int unsigned default NULL,
+   updatetime int not null,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+* 网站首页的动画
+使用到了three.js库, 这是一个3D动画库, 封装了webgl的操作.
+
+* pdf
+[[https://www.aibaodata.com/genpdf?plans=%257B%2522args%2522%253A%2520%257B%2522a%2522%253A%2520%25222018-11-19%2522%252C%2520%2522be%2522%253A%2520%252250000%2522%252C%2520%2522q%2522%253A%2520%25221%2522%257D%252C%2520%2522plans%2522%253A%2520%255B%257B%2522code%2522%253A%2520%257B%2522a%2522%253A%2520%25222018-11-19%2522%252C%2520%2522be%2522%253A%2520%252250000%2522%252C%2520%2522q%2522%253A%2520%25221%2522%257D%252C%2520%2522planid%2522%253A%2520680%257D%255D%257D][pdf示例连接]]
+
+* 名片相关服务
+mysqld_safe &  # 启动mysql
+systemctl restart nginx  # 启动nginx
+
+虚拟环境是: source /root/venv2/bin/activate
+
+screen -S card  # 名片小程序
+screen -S boss  # 名片boss端
+screen -S genpic  # 名片样式程序
+screen -S autogenpic  # 定时生成图片信息
+screen -S autosyncdata  # 定时同步数据
+
+* 后台相关服务
+wx.aibaodata.com 对应的服务是 screen -S weixin
+
+* 现金流
+产品计划中的长险现金流:
+LongTermAttrs模型的外键是ProductPlans
+
+表:
+insurance_data_longtermname => 名称,
+insurance_data_longtermattrs => 存储的是计划与长险现金之间的关系
+
+* 产品计划中的保障内容
+数据模型是: Protects, 外键是ProductPlans
+
